@@ -177,16 +177,35 @@ class GradioAdmin:
             data.append({
                 "ID": event.id,
                 "活動名稱": event.name,
+                "描述": event.description or "",
+                "地點": event.location or "",
                 "開始時間": event.start_time.strftime("%Y-%m-%d %H:%M") if event.start_time else "",
                 "結束時間": event.end_time.strftime("%Y-%m-%d %H:%M") if event.end_time else "",
-                "狀態": "啟用" if event.is_active else "停用"
+                "狀態": "啟用" if event.is_active else "停用",
+                "創建時間": event.created_at.strftime("%Y-%m-%d %H:%M") if event.created_at else "",
+                "更新時間": event.updated_at.strftime("%Y-%m-%d %H:%M") if event.updated_at else ""
             })
         return pd.DataFrame(data)
 
-    def create_event(self, merchant_id: int, name: str, start_time: str, end_time: str) -> str:
-        event_data = EventCreate(name=name, start_time=start_time, end_time=end_time)
-        EventService.create_event(self.db, event_data, merchant_id)
-        return "活動新增成功"
+    def create_event(self, merchant_id: int, name: str, description: str, location: str, start_time: str, end_time: str) -> str:
+        try:
+            from datetime import datetime
+            start_dt = datetime.strptime(start_time, "%Y-%m-%d %H:%M")
+            end_dt = datetime.strptime(end_time, "%Y-%m-%d %H:%M")
+            
+            event_data = EventCreate(
+                name=name, 
+                description=description,
+                location=location,
+                start_time=start_dt, 
+                end_time=end_dt
+            )
+            EventService.create_event(self.db, event_data, merchant_id)
+            return "活動新增成功"
+        except ValueError as e:
+            return f"日期格式錯誤: {str(e)}"
+        except Exception as e:
+            return f"新增失敗: {str(e)}"
 
     def delete_event(self, event_id: int) -> str:
         EventService.delete_event(self.db, event_id)
@@ -302,17 +321,27 @@ class GradioAdmin:
             # 活動管理
             with gr.Tab("活動管理"):
                 event_merchant_id = gr.Number(label="商戶ID")
-                event_table = gr.Dataframe(headers=["ID", "活動名稱", "開始時間", "結束時間", "狀態"])
+                event_table = gr.Dataframe(headers=["ID", "活動名稱", "描述", "地點", "開始時間", "結束時間", "狀態", "創建時間", "更新時間"])
                 event_refresh_btn = gr.Button("刷新活動列表")
                 event_refresh_btn.click(self.get_events_data, inputs=[event_merchant_id], outputs=[event_table])
+                
                 # 新增活動
+                gr.Markdown("### 新增活動")
                 event_name = gr.Textbox(label="活動名稱")
-                event_start = gr.Textbox(label="開始時間 (YYYY-MM-DD HH:MM)")
-                event_end = gr.Textbox(label="結束時間 (YYYY-MM-DD HH:MM)")
+                event_description = gr.Textbox(label="活動描述")
+                event_location = gr.Textbox(label="活動地點")
+                event_start = gr.Textbox(label="開始時間 (YYYY-MM-DD HH:MM)", placeholder="2024-12-25 14:00")
+                event_end = gr.Textbox(label="結束時間 (YYYY-MM-DD HH:MM)", placeholder="2024-12-25 18:00")
                 event_create_btn = gr.Button("新增活動")
                 event_create_status = gr.Textbox(label="狀態")
-                event_create_btn.click(self.create_event, inputs=[event_merchant_id, event_name, event_start, event_end], outputs=[event_create_status])
+                event_create_btn.click(
+                    self.create_event, 
+                    inputs=[event_merchant_id, event_name, event_description, event_location, event_start, event_end], 
+                    outputs=[event_create_status]
+                )
+                
                 # 刪除活動
+                gr.Markdown("### 刪除活動")
                 event_id_delete = gr.Number(label="活動ID")
                 event_delete_btn = gr.Button("刪除活動")
                 event_delete_status = gr.Textbox(label="狀態")
