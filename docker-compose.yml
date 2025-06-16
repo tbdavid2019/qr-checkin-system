@@ -1,15 +1,153 @@
+version: '3.8'
+
 services:
+  # PostgreSQL 資料庫
   db:
     image: postgres:15
     restart: always
     environment:
-      POSTGRES_USER: qr_admin
-      POSTGRES_PASSWORD: qr_pass
-      POSTGRES_DB: qr_system
+      POSTGRES_USER: ${POSTGRES_USER:-qr_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-qr_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-qr_system}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-qr_admin} -d ${POSTGRES_DB:-qr_system}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # QR Check-in API 服務
+  api:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://qr_admin:qr_pass@db:5432/qr_system}
+      - ENABLE_MULTI_TENANT=${ENABLE_MULTI_TENANT:-1}
+      - SECRET_KEY=${SECRET_KEY:-docker-production-secret-key-change-in-production}
+      - API_KEY=${API_KEY:-docker-api-key-change-in-production}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - GRADIO_PORT=${GRADIO_PORT:-7860}
+      - DEBUG=${DEBUG:-False}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - PYTHONPATH=/app
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Gradio 管理介面
+  gradio:
+    build:
+      context: .
+      dockerfile: Dockerfile.gradio
+    restart: always
+    ports:
+      - "${GRADIO_PORT:-7860}:7860"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://qr_admin:qr_pass@db:5432/qr_system}
+      - ENABLE_MULTI_TENANT=${ENABLE_MULTI_TENANT:-1}
+      - SECRET_KEY=${SECRET_KEY:-docker-production-secret-key-change-in-production}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - GRADIO_PORT=${GRADIO_PORT:-7860}
+      - PYTHONPATH=/app
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # 資料庫遷移服務 (一次性)
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://qr_admin:qr_pass@db:5432/qr_system}
+      - PYTHONPATH=/app
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./alembic:/app/alembic:ro
+      - ./.env:/app/.env:ro
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+
+  # 初始化多租戶數據 (一次性)
+  setup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://qr_admin:qr_pass@db:5432/qr_system}
+      - ENABLE_MULTI_TENANT=${ENABLE_MULTI_TENANT:-1}
+      - SECRET_KEY=${SECRET_KEY:-docker-production-secret-key-change-in-production}
+      - PYTHONPATH=/app
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./.env:/app/.env:ro
+    command: ["python", "setup_multi_tenant.py"]
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
 
 volumes:
   db_data:
