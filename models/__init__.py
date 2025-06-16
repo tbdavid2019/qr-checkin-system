@@ -4,3 +4,4 @@ from .ticket_type import TicketType
 from .checkin import CheckInLog
 from .staff import Staff
 from .staff_event import StaffEvent
+from .merchant import Merchant, ApiKey

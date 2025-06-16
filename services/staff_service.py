@@ -95,3 +95,42 @@ class StaffService:
                       .first())
         
         return staff_event and staff_event.can_revoke
+    
+    @staticmethod
+    def create_staff(db: Session, staff_data, merchant_id: Optional[int] = None) -> Staff:
+        """創建新員工"""
+        # 檢查用戶名是否已存在
+        existing_staff = db.query(Staff).filter(Staff.username == staff_data.username).first()
+        if existing_staff:
+            raise ValueError(f"用戶名 '{staff_data.username}' 已存在")
+        
+        # 創建新員工
+        hashed_password = get_password_hash(staff_data.password)
+        
+        # 根據 role 設置 is_admin
+        is_admin = getattr(staff_data, 'role', 'staff') == 'admin'
+        
+        staff = Staff(
+            username=staff_data.username,
+            hashed_password=hashed_password,
+            full_name=staff_data.name,
+            email=staff_data.email,
+            is_admin=is_admin,
+            merchant_id=merchant_id,
+            is_active=True
+        )
+        
+        db.add(staff)
+        db.commit()
+        db.refresh(staff)
+        return staff
+    
+    @staticmethod
+    def get_staff_by_username(db: Session, username: str) -> Optional[Staff]:
+        """根據用戶名獲取員工"""
+        return db.query(Staff).filter(Staff.username == username).first()
+    
+    @staticmethod
+    def get_staff_by_merchant(db: Session, merchant_id: int) -> List[Staff]:
+        """獲取指定商戶的所有員工"""
+        return db.query(Staff).filter(Staff.merchant_id == merchant_id).all()

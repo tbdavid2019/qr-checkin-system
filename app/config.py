@@ -22,6 +22,13 @@ class Settings:
     VERSION: str = "1.0.0"
     API_KEY: str = os.getenv("API_KEY", "test-api-key")  # 簡化認證用的API Key
     
+    # 多租戶配置
+    ENABLE_MULTI_TENANT: bool = os.getenv("ENABLE_MULTI_TENANT", "1") == "1"
+    
+    # Gradio 管理介面配置
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin123")
+    GRADIO_PORT: int = int(os.getenv("GRADIO_PORT", "7860"))
+    
     # 跨域配置
     BACKEND_CORS_ORIGINS: list = [
         "http://localhost:3000",

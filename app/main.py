@@ -30,6 +30,7 @@ from routers.checkin_simple import router as checkin_router
 from routers.events import router as events_router
 from routers.tickets import router as tickets_admin_router
 from routers.checkin import router as checkin_admin_router
+from routers.merchants import router as merchants_router
 
 app.include_router(staff_router)
 app.include_router(tickets_router)
@@ -38,6 +39,9 @@ app.include_router(checkin_router)
 app.include_router(events_router)
 app.include_router(tickets_admin_router, prefix="/admin")
 app.include_router(checkin_admin_router, prefix="/admin")
+# 添加商戶管理API (僅在多租戶模式下)
+if settings.ENABLE_MULTI_TENANT:
+    app.include_router(merchants_router, prefix="/admin")
 
 @app.get("/")
 def read_root():

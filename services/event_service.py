@@ -9,9 +9,13 @@ from schemas.event import EventCreate, EventUpdate, TicketTypeCreate, TicketType
 class EventService:
     
     @staticmethod
-    def create_event(db: Session, event_data: EventCreate) -> Event:
-        """建立活動"""
-        event = Event(**event_data.dict())
+    def create_event(db: Session, event_data: EventCreate, merchant_id: Optional[int] = None) -> Event:
+        """建立活動（支援多租戶）"""
+        event_dict = event_data.dict()
+        if merchant_id:
+            event_dict['merchant_id'] = merchant_id
+        
+        event = Event(**event_dict)
         db.add(event)
         db.commit()
         db.refresh(event)
@@ -26,6 +30,11 @@ class EventService:
     def get_events(db: Session, skip: int = 0, limit: int = 100) -> List[Event]:
         """獲取活動列表"""
         return db.query(Event).offset(skip).limit(limit).all()
+    
+    @staticmethod
+    def get_events_by_merchant(db: Session, merchant_id: int) -> List[Event]:
+        """獲取指定商戶的活動列表"""
+        return db.query(Event).filter(Event.merchant_id == merchant_id).all()
     
     @staticmethod
     def update_event(db: Session, event_id: int, event_data: EventUpdate) -> Optional[Event]:

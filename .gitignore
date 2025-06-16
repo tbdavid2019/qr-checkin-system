@@ -111,11 +111,6 @@ env.bak/
 venv.bak/
 myenv/
 
-# Database configuration files (含敏感資訊)
-alembic.ini
-*.env.local
-*.env.production
-
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -163,15 +158,10 @@ $RECYCLE.BIN/
 *.csv
 *.xlsx
 *.log
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-
-# Database configuration files (含敏感資訊)
-alembic.ini
-*.env.local
-*.env.productionuction
+.env.local
+.env.development
+.env.test
+.env.production
 
 # Database files
 *.db
@@ -195,3 +185,5 @@ reports/
 temp/
 tmp/
 *.tmp
+
+alembic.ini

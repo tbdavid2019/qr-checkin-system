@@ -1,0 +1,41 @@
+# 這是 alembic.ini 的模板文件
+# 使用前請複製為 alembic.ini 並填入正確的資料庫連接資訊
+
+[alembic]
+script_location = alembic
+# 請將此 URL 替換為您的實際資料庫連接字串
+# 格式: postgresql://username:password@host:port/database_name
+sqlalchemy.url = postgresql://DB_USER:DB_PASSWORD@DB_HOST:DB_PORT/DB_NAME
+
+[loggers]
+keys = root,sqlalchemy,alembic
+
+[handlers]
+keys = console
+
+[formatters]
+keys = generic
+
+[logger_root]
+level = WARN
+handlers = console
+qualname =
+
+[logger_sqlalchemy]
+level = WARN
+handlers =
+qualname = sqlalchemy.engine
+
+[logger_alembic]
+level = INFO
+handlers =
+qualname = alembic
+
+[handler_console]
+class = StreamHandler
+args = (sys.stderr,)
+level = NOTSET
+formatter = generic
+
+[formatter_generic]
+format = %(levelname)-5.5s [%(name)s] %(message)s
