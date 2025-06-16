@@ -134,3 +134,54 @@ class StaffService:
     def get_staff_by_merchant(db: Session, merchant_id: int) -> List[Staff]:
         """獲取指定商戶的所有員工"""
         return db.query(Staff).filter(Staff.merchant_id == merchant_id).all()
+    
+    @staticmethod
+    def update_staff(db: Session, staff_id: int, staff_data) -> Staff:
+        """更新員工資訊"""
+        staff = db.query(Staff).filter(Staff.id == staff_id).first()
+        if not staff:
+            raise ValueError(f"員工 ID {staff_id} 不存在")
+        
+        # 檢查用戶名是否被其他員工使用
+        if hasattr(staff_data, 'username') and staff_data.username != staff.username:
+            existing_staff = db.query(Staff).filter(
+                Staff.username == staff_data.username,
+                Staff.id != staff_id
+            ).first()
+            if existing_staff:
+                raise ValueError(f"用戶名 '{staff_data.username}' 已被其他員工使用")
+        
+        # 更新員工資訊
+        if hasattr(staff_data, 'username'):
+            staff.username = staff_data.username
+        if hasattr(staff_data, 'name'):
+            staff.full_name = staff_data.name
+        if hasattr(staff_data, 'email'):
+            staff.email = staff_data.email
+        if hasattr(staff_data, 'password') and staff_data.password:
+            staff.hashed_password = get_password_hash(staff_data.password)
+        if hasattr(staff_data, 'role'):
+            staff.is_admin = staff_data.role == 'admin'
+        
+        db.commit()
+        db.refresh(staff)
+        return staff
+    
+    @staticmethod
+    def delete_staff(db: Session, staff_id: int) -> bool:
+        """刪除員工"""
+        staff = db.query(Staff).filter(Staff.id == staff_id).first()
+        if not staff:
+            return False
+        
+        try:
+            # 先刪除相關的員工活動權限記錄
+            db.query(StaffEvent).filter(StaffEvent.staff_id == staff_id).delete()
+            
+            # 刪除員工
+            db.delete(staff)
+            db.commit()
+            return True
+        except Exception:
+            db.rollback()
+            return False

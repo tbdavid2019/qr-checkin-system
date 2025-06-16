@@ -110,3 +110,137 @@ def create_staff(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+
+@router.get("/list", response_model=List[StaffProfile])
+def get_staff_list(
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
+):
+    """獲取當前商戶的員工列表"""
+    if settings.ENABLE_MULTI_TENANT:
+        merchant_id = merchant.id
+    else:
+        # 單租戶模式，假設只有一個商戶
+        merchant_id = 1
+    
+    staff_list = StaffService.get_staff_by_merchant(db, merchant_id)
+    
+    return [
+        StaffProfile(
+            id=staff.id,
+            username=staff.username,
+            email=staff.email,
+            full_name=staff.full_name,
+            is_active=staff.is_active,
+            is_admin=staff.is_admin,
+            role="admin" if staff.is_admin else "staff",
+            last_login=staff.last_login
+        )
+        for staff in staff_list
+    ]
+
+@router.get("/{staff_id}", response_model=StaffProfile)
+def get_staff_detail(
+    staff_id: int,
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
+):
+    """獲取員工詳情"""
+    staff = StaffService.get_staff_by_id(db, staff_id)
+    
+    if settings.ENABLE_MULTI_TENANT:
+        if not staff or staff.merchant_id != merchant.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Staff not found"
+            )
+    else:
+        if not staff:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Staff not found"
+            )
+    
+    return StaffProfile(
+        id=staff.id,
+        username=staff.username,
+        email=staff.email,
+        full_name=staff.full_name,
+        is_active=staff.is_active,
+        is_admin=staff.is_admin,
+        role="admin" if staff.is_admin else "staff",
+        last_login=staff.last_login
+    )
+
+@router.put("/{staff_id}", response_model=StaffProfile)
+def update_staff(
+    staff_id: int,
+    staff_data: StaffCreate,
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
+):
+    """更新員工資訊"""
+    try:
+        staff = StaffService.get_staff_by_id(db, staff_id)
+        
+        if settings.ENABLE_MULTI_TENANT:
+            if not staff or staff.merchant_id != merchant.id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Staff not found"
+                )
+        else:
+            if not staff:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Staff not found"
+                )
+        
+        updated_staff = StaffService.update_staff(db, staff_id, staff_data)
+        
+        return StaffProfile(
+            id=updated_staff.id,
+            username=updated_staff.username,
+            email=updated_staff.email,
+            full_name=updated_staff.full_name,
+            is_active=updated_staff.is_active,
+            is_admin=updated_staff.is_admin,
+            role="admin" if updated_staff.is_admin else "staff",
+            last_login=updated_staff.last_login
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.delete("/{staff_id}")
+def delete_staff(
+    staff_id: int,
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
+):
+    """刪除員工"""
+    staff = StaffService.get_staff_by_id(db, staff_id)
+    
+    if settings.ENABLE_MULTI_TENANT:
+        if not staff or staff.merchant_id != merchant.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Staff not found"
+            )
+    else:
+        if not staff:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Staff not found"
+            )
+    
+    success = StaffService.delete_staff(db, staff_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to delete staff"
+        )
+    
+    return {"message": "Staff deleted successfully"}

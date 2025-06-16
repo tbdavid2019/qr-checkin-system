@@ -10,7 +10,10 @@ from app.database import get_db
 from services.merchant_service import MerchantService
 from services.staff_service import StaffService
 from services.event_service import EventService
+from services.ticket_service import TicketService
 from schemas.merchant import MerchantCreate, MerchantUpdate, ApiKeyCreate
+from schemas.staff import StaffCreate
+from schemas.event import EventCreate
 from app.config import settings
 
 class GradioAdmin:
@@ -141,6 +144,81 @@ class GradioAdmin:
             "總員工數": total_staff
         }
     
+    # 員工管理
+    def get_staff_data(self, merchant_id: int) -> pd.DataFrame:
+        staff_list = StaffService.get_staff_by_merchant(self.db, merchant_id)
+        data = []
+        for staff in staff_list:
+            data.append({
+                "ID": staff.id,
+                "帳號": staff.username,
+                "姓名": staff.full_name,
+                "Email": staff.email,
+                "狀態": "啟用" if staff.is_active else "停用",
+                "管理員": "是" if staff.is_admin else "否",
+                "建立時間": staff.created_at.strftime("%Y-%m-%d %H:%M") if staff.created_at else ""
+            })
+        return pd.DataFrame(data)
+
+    def create_staff(self, merchant_id: int, username: str, password: str, full_name: str, email: str, is_admin: bool) -> str:
+        staff_data = StaffCreate(username=username, password=password, full_name=full_name, email=email, is_admin=is_admin)
+        StaffService.create_staff(self.db, staff_data, merchant_id)
+        return "員工新增成功"
+
+    def delete_staff(self, staff_id: int) -> str:
+        StaffService.delete_staff(self.db, staff_id)
+        return "員工已刪除"
+
+    # 活動管理
+    def get_events_data(self, merchant_id: int) -> pd.DataFrame:
+        events = EventService.get_events_by_merchant(self.db, merchant_id)
+        data = []
+        for event in events:
+            data.append({
+                "ID": event.id,
+                "活動名稱": event.name,
+                "開始時間": event.start_time.strftime("%Y-%m-%d %H:%M") if event.start_time else "",
+                "結束時間": event.end_time.strftime("%Y-%m-%d %H:%M") if event.end_time else "",
+                "狀態": "啟用" if event.is_active else "停用"
+            })
+        return pd.DataFrame(data)
+
+    def create_event(self, merchant_id: int, name: str, start_time: str, end_time: str) -> str:
+        event_data = EventCreate(name=name, start_time=start_time, end_time=end_time)
+        EventService.create_event(self.db, event_data, merchant_id)
+        return "活動新增成功"
+
+    def delete_event(self, event_id: int) -> str:
+        EventService.delete_event(self.db, event_id)
+        return "活動已刪除"
+
+    # 門票管理
+    def get_tickets_data(self, event_id: int) -> pd.DataFrame:
+        tickets = TicketService.get_tickets_by_event(self.db, event_id)
+        data = []
+        for ticket in tickets:
+            data.append({
+                "ID": ticket.id,
+                "票種": ticket.ticket_type,
+                "持有人": ticket.holder_name,
+                "狀態": "已簽到" if ticket.checked_in else "未簽到",
+                "簽到時間": ticket.checkin_time.strftime("%Y-%m-%d %H:%M") if ticket.checkin_time else ""
+            })
+        return pd.DataFrame(data)
+
+    # 簽到記錄查看
+    def get_checkin_records(self, event_id: int) -> pd.DataFrame:
+        tickets = TicketService.get_tickets_by_event(self.db, event_id)
+        data = []
+        for ticket in tickets:
+            if ticket.checked_in:
+                data.append({
+                    "票號": ticket.id,
+                    "姓名": ticket.holder_name,
+                    "簽到時間": ticket.checkin_time.strftime("%Y-%m-%d %H:%M") if ticket.checkin_time else ""
+                })
+        return pd.DataFrame(data)
+    
     def create_interface(self):
         """創建Gradio界面"""
         with gr.Blocks(title="QR Check-in 管理介面", theme=gr.themes.Soft()) as app:
@@ -200,6 +278,60 @@ class GradioAdmin:
                             label="API Key列表"
                         )
             
+            # 員工管理
+            with gr.Tab("員工管理"):
+                merchant_id_input = gr.Number(label="商戶ID")
+                staff_table = gr.Dataframe(headers=["ID", "帳號", "姓名", "Email", "狀態", "管理員", "建立時間"])
+                staff_refresh_btn = gr.Button("刷新員工列表")
+                staff_refresh_btn.click(self.get_staff_data, inputs=[merchant_id_input], outputs=[staff_table])
+                # 新增員工
+                staff_username = gr.Textbox(label="帳號")
+                staff_password = gr.Textbox(label="密碼", type="password")
+                staff_full_name = gr.Textbox(label="姓名")
+                staff_email = gr.Textbox(label="Email")
+                staff_is_admin = gr.Checkbox(label="管理員")
+                staff_create_btn = gr.Button("新增員工")
+                staff_create_status = gr.Textbox(label="狀態")
+                staff_create_btn.click(self.create_staff, inputs=[merchant_id_input, staff_username, staff_password, staff_full_name, staff_email, staff_is_admin], outputs=[staff_create_status])
+                # 刪除員工
+                staff_id_delete = gr.Number(label="員工ID")
+                staff_delete_btn = gr.Button("刪除員工")
+                staff_delete_status = gr.Textbox(label="狀態")
+                staff_delete_btn.click(self.delete_staff, inputs=[staff_id_delete], outputs=[staff_delete_status])
+
+            # 活動管理
+            with gr.Tab("活動管理"):
+                event_merchant_id = gr.Number(label="商戶ID")
+                event_table = gr.Dataframe(headers=["ID", "活動名稱", "開始時間", "結束時間", "狀態"])
+                event_refresh_btn = gr.Button("刷新活動列表")
+                event_refresh_btn.click(self.get_events_data, inputs=[event_merchant_id], outputs=[event_table])
+                # 新增活動
+                event_name = gr.Textbox(label="活動名稱")
+                event_start = gr.Textbox(label="開始時間 (YYYY-MM-DD HH:MM)")
+                event_end = gr.Textbox(label="結束時間 (YYYY-MM-DD HH:MM)")
+                event_create_btn = gr.Button("新增活動")
+                event_create_status = gr.Textbox(label="狀態")
+                event_create_btn.click(self.create_event, inputs=[event_merchant_id, event_name, event_start, event_end], outputs=[event_create_status])
+                # 刪除活動
+                event_id_delete = gr.Number(label="活動ID")
+                event_delete_btn = gr.Button("刪除活動")
+                event_delete_status = gr.Textbox(label="狀態")
+                event_delete_btn.click(self.delete_event, inputs=[event_id_delete], outputs=[event_delete_status])
+
+            # 門票管理
+            with gr.Tab("門票管理"):
+                ticket_event_id = gr.Number(label="活動ID")
+                ticket_table = gr.Dataframe(headers=["ID", "票種", "持有人", "狀態", "簽到時間"])
+                ticket_refresh_btn = gr.Button("刷新門票列表")
+                ticket_refresh_btn.click(self.get_tickets_data, inputs=[ticket_event_id], outputs=[ticket_table])
+
+            # 簽到記錄
+            with gr.Tab("簽到記錄"):
+                checkin_event_id = gr.Number(label="活動ID")
+                checkin_table = gr.Dataframe(headers=["票號", "姓名", "簽到時間"])
+                checkin_refresh_btn = gr.Button("刷新簽到記錄")
+                checkin_refresh_btn.click(self.get_checkin_records, inputs=[checkin_event_id], outputs=[checkin_table])
+
             # 事件處理
             def handle_login(password):
                 return self.authenticate_admin(password)
