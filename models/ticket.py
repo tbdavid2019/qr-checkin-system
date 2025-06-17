@@ -16,6 +16,7 @@ class Ticket(Base):
     holder_phone = Column(String(20), nullable=True)
     external_user_id = Column(String(100), nullable=True, index=True)  # LINE ID, FB ID 等
     notes = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)  # JSON 格式的額外資訊（座位、席次等）
     is_used = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
     

@@ -17,7 +17,7 @@ from utils.auth import create_qr_token, verify_qr_token
 from utils.qr_code import generate_qr_code, generate_ticket_qr_url
 from models import Staff
 
-router = APIRouter(prefix="/api/tickets", tags=["Tickets"])
+router = APIRouter(prefix="/api/tickets-mgmt", tags=["Tickets Management"])
 
 @router.get("/{ticket_id}/qrcode")
 def get_ticket_qr_code(
@@ -116,6 +116,16 @@ def get_tickets(
     """查詢活動票券清單（多租戶安全）"""
     tickets = TicketService.get_tickets_by_event_and_merchant(db, event_id, merchant.id if merchant else None, skip, limit)
     return tickets
+
+@router.post("", response_model=Ticket)
+def create_ticket(
+    ticket_data: TicketCreate,
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
+):
+    """創建單張票券（多租戶安全）"""
+    ticket = TicketService.create_ticket_with_merchant(db, ticket_data, merchant.id if merchant else None)
+    return ticket
 
 @router.post("/batch", response_model=List[Ticket])
 def create_batch_tickets(

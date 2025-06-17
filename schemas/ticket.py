@@ -12,6 +12,7 @@ class TicketBase(BaseModel):
     holder_phone: Optional[str] = None
     external_user_id: Optional[str] = None
     notes: Optional[str] = None
+    description: Optional[str] = None  # JSON 格式的額外資訊
 
 class TicketCreate(TicketBase):
     event_id: int
@@ -22,6 +23,7 @@ class TicketUpdate(BaseModel):
     holder_email: Optional[str] = None
     holder_phone: Optional[str] = None
     notes: Optional[str] = None
+    description: Optional[str] = None  # JSON 格式的額外資訊
 
 class Ticket(TicketBase):
     id: int
@@ -58,3 +60,4 @@ class BatchTicketCreate(BaseModel):
     ticket_type_id: Optional[int] = None
     count: int
     holder_name_prefix: str = "票券"  # 例如: "票券001", "票券002"
+    description: Optional[str] = None  # JSON 格式的額外資訊，套用到所有票券

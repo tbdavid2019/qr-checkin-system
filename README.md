@@ -430,6 +430,7 @@ QR_TOKEN_EXPIRE_HOURS=168  # 7天過期
 ## 📞 技術支援
 
 - **API 文檔**: http://localhost:8000/docs
+- **API 路由總覽**: [API_ROUTES_OVERVIEW.md](API_ROUTES_OVERVIEW.md)
 - **健康檢查**: http://localhost:8000/health
 - **測試腳本**: `test_simple_auth.py`
 

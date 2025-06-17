@@ -16,7 +16,7 @@ from services.ticket_service import TicketService
 from services.staff_service import StaffService
 from utils.auth import verify_qr_token
 
-router = APIRouter(prefix="/api/checkin", tags=["Check-in"])
+router = APIRouter(prefix="/api/checkin-mgmt", tags=["Check-in Management"])
 
 @router.post("", response_model=CheckInResponse, dependencies=[Depends(require_api_key)])
 def check_in_ticket(

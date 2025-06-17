@@ -144,7 +144,8 @@ class TicketService:
                 event_id=batch_data.event_id,
                 ticket_type_id=batch_data.ticket_type_id,
                 ticket_code=ticket_code,
-                holder_name=f"{batch_data.holder_name_prefix}{i+1:03d}"
+                holder_name=f"{batch_data.holder_name_prefix}{i+1:03d}",
+                description=batch_data.description  # 添加 description 支援
             )
             tickets.append(ticket)
             db.add(ticket)
@@ -178,6 +179,40 @@ class TicketService:
         update_data = ticket_data.dict(exclude_unset=True)
         for field, value in update_data.items():
             setattr(ticket, field, value)
+        db.commit()
+        db.refresh(ticket)
+        return ticket
+    
+    @staticmethod
+    def create_ticket_with_merchant(db: Session, ticket_data: TicketCreate, merchant_id: int = None) -> Ticket:
+        """多租戶安全地建立單張票券"""
+        # 驗證活動屬於該商戶
+        if merchant_id:
+            event = db.query(Event).filter(
+                and_(Event.id == ticket_data.event_id, Event.merchant_id == merchant_id)
+            ).first()
+            if not event:
+                raise ValueError("Event not found or no permission")
+        
+        # 驗證票種屬於該活動
+        if ticket_data.ticket_type_id:
+            ticket_type = db.query(TicketType).filter(
+                and_(TicketType.id == ticket_data.ticket_type_id, TicketType.event_id == ticket_data.event_id)
+            ).first()
+            if not ticket_type:
+                raise ValueError("Ticket type not found or doesn't belong to this event")
+        
+        # 生成唯一票券代碼
+        while True:
+            ticket_code = generate_ticket_code()
+            if not db.query(Ticket).filter(Ticket.ticket_code == ticket_code).first():
+                break
+        
+        ticket = Ticket(
+            **ticket_data.dict(),
+            ticket_code=ticket_code
+        )
+        db.add(ticket)
         db.commit()
         db.refresh(ticket)
         return ticket
