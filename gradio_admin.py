@@ -18,7 +18,17 @@ from app.config import settings
 
 class GradioAdmin:
     def __init__(self):
-        self.db = next(get_db())
+        # 使用 sessionmaker 來管理數據庫會話
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from app.config import settings
+        
+        self.engine = create_engine(settings.DATABASE_URL)
+        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+    
+    def get_db_session(self):
+        """獲取新的數據庫會話"""
+        return self.SessionLocal()
     
     def authenticate_admin(self, password: str) -> tuple:
         """管理員認證"""
@@ -28,26 +38,35 @@ class GradioAdmin:
     
     def get_merchants_data(self) -> pd.DataFrame:
         """獲取商戶數據"""
-        merchants = MerchantService.get_merchants(self.db)
-        data = []
-        for merchant in merchants:
-            stats = MerchantService.get_merchant_statistics(self.db, merchant.id)
-            data.append({
-                "ID": merchant.id,
-                "商戶名稱": merchant.name,
-                "描述": merchant.description or "",
-                "電子郵件": merchant.contact_email or "",
-                "狀態": "啟用" if merchant.is_active else "停用",
-                "活動數": stats["total_events"],
-                "門票數": stats["total_tickets"],
-                "員工數": stats["total_staff"],
-                "API Keys": stats["active_api_keys"],
-                "創建時間": merchant.created_at.strftime("%Y-%m-%d %H:%M") if merchant.created_at else ""
-            })
-        return pd.DataFrame(data)
+        db = self.get_db_session()
+        try:
+            merchants = MerchantService.get_merchants(db)
+            data = []
+            for merchant in merchants:
+                stats = MerchantService.get_merchant_statistics(db, merchant.id)
+                data.append({
+                    "ID": merchant.id,
+                    "商戶名稱": merchant.name,
+                    "描述": merchant.description or "",
+                    "電子郵件": merchant.contact_email or "",
+                    "狀態": "啟用" if merchant.is_active else "停用",
+                    "活動數": stats["total_events"],
+                    "門票數": stats["total_tickets"],
+                    "員工數": stats["total_staff"],
+                    "API Keys": stats["active_api_keys"],
+                    "創建時間": merchant.created_at.strftime("%Y-%m-%d %H:%M") if merchant.created_at else ""
+                })
+            return pd.DataFrame(data)
+        except Exception as e:
+            print(f"Error in get_merchants_data: {e}")
+            db.rollback()
+            return pd.DataFrame()
+        finally:
+            db.close()
     
     def create_merchant(self, name: str, description: str, contact_email: str, contact_phone: str = None) -> tuple:
         """創建新商戶"""
+        db = self.get_db_session()
         try:
             if not name or not contact_email:
                 return "請填寫所有必填欄位", self.get_merchants_data()
@@ -59,11 +78,11 @@ class GradioAdmin:
                 contact_phone=contact_phone
             )
             
-            merchant = MerchantService.create_merchant(self.db, merchant_data)
+            merchant = MerchantService.create_merchant(db, merchant_data)
             
             # 自動創建預設API Key
             MerchantService.create_api_key(
-                db=self.db,
+                db=db,
                 merchant_id=merchant.id,
                 key_name="預設API Key",
                 permissions={
@@ -73,32 +92,46 @@ class GradioAdmin:
                 }
             )
             
+            db.commit()
             return f"成功創建商戶: {merchant.name}", self.get_merchants_data()
         except Exception as e:
+            print(f"Error in create_merchant: {e}")
+            db.rollback()
             return f"創建失敗: {str(e)}", self.get_merchants_data()
+        finally:
+            db.close()
     
     def get_merchant_api_keys(self, merchant_id: int) -> pd.DataFrame:
         """獲取商戶API Keys"""
         if not merchant_id:
             return pd.DataFrame()
         
-        api_keys = MerchantService.get_merchant_api_keys(self.db, merchant_id)
-        data = []
-        for key in api_keys:
-            data.append({
-                "ID": key.id,
-                "名稱": key.key_name,
-                "API Key": key.api_key[:16] + "..." if key.api_key else "",
-                "狀態": "啟用" if key.is_active else "停用",
-                "最後使用": key.last_used_at.strftime("%Y-%m-%d %H:%M") if key.last_used_at else "從未使用",
-                "使用次數": key.usage_count,
-                "過期時間": key.expires_at.strftime("%Y-%m-%d %H:%M") if key.expires_at else "永不過期",
-                "創建時間": key.created_at.strftime("%Y-%m-%d %H:%M") if key.created_at else ""
-            })
-        return pd.DataFrame(data)
+        db = self.get_db_session()
+        try:
+            api_keys = MerchantService.get_merchant_api_keys(db, merchant_id)
+            data = []
+            for key in api_keys:
+                data.append({
+                    "ID": key.id,
+                    "名稱": key.key_name,
+                    "API Key": key.api_key[:16] + "..." if key.api_key else "",
+                    "狀態": "啟用" if key.is_active else "停用",
+                    "最後使用": key.last_used_at.strftime("%Y-%m-%d %H:%M") if key.last_used_at else "從未使用",
+                    "使用次數": key.usage_count,
+                    "過期時間": key.expires_at.strftime("%Y-%m-%d %H:%M") if key.expires_at else "永不過期",
+                    "創建時間": key.created_at.strftime("%Y-%m-%d %H:%M") if key.created_at else ""
+                })
+            return pd.DataFrame(data)
+        except Exception as e:
+            print(f"Error in get_merchant_api_keys: {e}")
+            db.rollback()
+            return pd.DataFrame()
+        finally:
+            db.close()
     
     def create_api_key(self, merchant_id: int, key_name: str, expires_days: int = None) -> tuple:
         """創建API Key"""
+        db = self.get_db_session()
         try:
             if not merchant_id or not key_name:
                 return "請選擇商戶並輸入API Key名稱", self.get_merchant_api_keys(merchant_id)
@@ -109,85 +142,135 @@ class GradioAdmin:
             )
             
             api_key = MerchantService.create_api_key(
-                db=self.db,
+                db=db,
                 merchant_id=merchant_id,
                 key_name=key_name,
                 expires_days=expires_days
             )
             
+            db.commit()
             return f"成功創建API Key: {api_key.api_key}", self.get_merchant_api_keys(merchant_id)
         except Exception as e:
+            print(f"Error in create_api_key: {e}")
+            db.rollback()
             return f"創建失敗: {str(e)}", self.get_merchant_api_keys(merchant_id)
+        finally:
+            db.close()
     
     def get_system_overview(self) -> dict:
         """獲取系統概覽"""
-        merchants = MerchantService.get_merchants(self.db)
-        total_merchants = len(merchants)
-        active_merchants = len([m for m in merchants if m.is_active])
+        db = self.get_db_session()
+        try:
+            merchants = MerchantService.get_merchants(db)
+            total_merchants = len(merchants)
+            active_merchants = len([m for m in merchants if m.is_active])
+            
+            total_events = 0
+            total_tickets = 0
+            total_staff = 0
+            
+            for merchant in merchants:
+                stats = MerchantService.get_merchant_statistics(db, merchant.id)
+                total_events += stats["total_events"]
+                total_tickets += stats["total_tickets"]
+                total_staff += stats["total_staff"]
         
-        total_events = 0
-        total_tickets = 0
-        total_staff = 0
-        
-        for merchant in merchants:
-            stats = MerchantService.get_merchant_statistics(self.db, merchant.id)
-            total_events += stats["total_events"]
-            total_tickets += stats["total_tickets"]
-            total_staff += stats["total_staff"]
-        
-        return {
-            "多租戶模式": "啟用" if settings.ENABLE_MULTI_TENANT else "停用",
-            "總商戶數": total_merchants,
-            "活躍商戶": active_merchants,
-            "總活動數": total_events,
-            "總門票數": total_tickets,
-            "總員工數": total_staff
-        }
+            return {
+                "多租戶模式": "啟用" if settings.ENABLE_MULTI_TENANT else "停用",
+                "總商戶數": total_merchants,
+                "活躍商戶": active_merchants,
+                "總活動數": total_events,
+                "總門票數": total_tickets,
+                "總員工數": total_staff
+            }
+        except Exception as e:
+            print(f"Error in get_system_overview: {e}")
+            db.rollback()
+            return {
+                "錯誤": f"無法載入系統概覽: {str(e)}"
+            }
+        finally:
+            db.close()
     
     # 員工管理
     def get_staff_data(self, merchant_id: int) -> pd.DataFrame:
-        staff_list = StaffService.get_staff_by_merchant(self.db, merchant_id)
-        data = []
-        for staff in staff_list:
-            data.append({
-                "ID": staff.id,
-                "帳號": staff.username,
-                "姓名": staff.full_name,
-                "Email": staff.email,
-                "狀態": "啟用" if staff.is_active else "停用",
-                "管理員": "是" if staff.is_admin else "否",
-                "建立時間": staff.created_at.strftime("%Y-%m-%d %H:%M") if staff.created_at else ""
-            })
-        return pd.DataFrame(data)
+        db = self.get_db_session()
+        try:
+            staff_list = StaffService.get_staff_by_merchant(db, merchant_id)
+            data = []
+            for staff in staff_list:
+                data.append({
+                    "ID": staff.id,
+                    "帳號": staff.username,
+                    "姓名": staff.full_name,
+                    "Email": staff.email,
+                    "狀態": "啟用" if staff.is_active else "停用",
+                    "管理員": "是" if staff.is_admin else "否",
+                    "建立時間": staff.created_at.strftime("%Y-%m-%d %H:%M") if staff.created_at else ""
+                })
+            return pd.DataFrame(data)
+        except Exception as e:
+            print(f"Error in get_staff_data: {e}")
+            db.rollback()
+            return pd.DataFrame()
+        finally:
+            db.close()
 
     def create_staff(self, merchant_id: int, username: str, password: str, full_name: str, email: str, is_admin: bool) -> str:
-        staff_data = StaffCreate(username=username, password=password, full_name=full_name, email=email, is_admin=is_admin)
-        StaffService.create_staff(self.db, staff_data, merchant_id)
-        return "員工新增成功"
+        db = self.get_db_session()
+        try:
+            staff_data = StaffCreate(username=username, password=password, full_name=full_name, email=email, is_admin=is_admin)
+            StaffService.create_staff(db, staff_data, merchant_id)
+            db.commit()
+            return "員工新增成功"
+        except Exception as e:
+            print(f"Error in create_staff: {e}")
+            db.rollback()
+            return f"員工新增失敗: {str(e)}"
+        finally:
+            db.close()
 
     def delete_staff(self, staff_id: int) -> str:
-        StaffService.delete_staff(self.db, staff_id)
-        return "員工已刪除"
+        db = self.get_db_session()
+        try:
+            StaffService.delete_staff(db, staff_id)
+            db.commit()
+            return "員工刪除成功"
+        except Exception as e:
+            print(f"Error in delete_staff: {e}")
+            db.rollback()
+            return f"員工刪除失敗: {str(e)}"
+        finally:
+            db.close()
 
     # 活動管理
     def get_events_data(self, merchant_id: int) -> pd.DataFrame:
-        events = EventService.get_events_by_merchant(self.db, merchant_id)
-        data = []
-        for event in events:
-            data.append({
-                "ID": event.id,
-                "活動名稱": event.name,
-                "描述": event.description or "",
-                "地點": event.location or "",
-                "開始時間": event.start_time.strftime("%Y-%m-%d %H:%M") if event.start_time else "",
-                "結束時間": event.end_time.strftime("%Y-%m-%d %H:%M") if event.end_time else "",
-                "狀態": "啟用" if event.is_active else "停用",
-                "創建時間": event.created_at.strftime("%Y-%m-%d %H:%M") if event.created_at else "",
-                "更新時間": event.updated_at.strftime("%Y-%m-%d %H:%M") if event.updated_at else ""
-            })
-        return pd.DataFrame(data)
+        db = self.get_db_session()
+        try:
+            events = EventService.get_events_by_merchant(db, merchant_id)
+            data = []
+            for event in events:
+                data.append({
+                    "ID": event.id,
+                    "活動名稱": event.name,
+                    "描述": event.description or "",
+                    "地點": event.location or "",
+                    "開始時間": event.start_time.strftime("%Y-%m-%d %H:%M") if event.start_time else "",
+                    "結束時間": event.end_time.strftime("%Y-%m-%d %H:%M") if event.end_time else "",
+                    "狀態": "啟用" if event.is_active else "停用",
+                    "創建時間": event.created_at.strftime("%Y-%m-%d %H:%M") if event.created_at else "",
+                    "更新時間": event.updated_at.strftime("%Y-%m-%d %H:%M") if event.updated_at else ""
+                })
+            return pd.DataFrame(data)
+        except Exception as e:
+            print(f"Error in get_events_data: {e}")
+            db.rollback()
+            return pd.DataFrame()
+        finally:
+            db.close()
 
     def create_event(self, merchant_id: int, name: str, description: str, location: str, start_time: str, end_time: str) -> str:
+        db = self.get_db_session()
         try:
             from datetime import datetime
             start_dt = datetime.strptime(start_time, "%Y-%m-%d %H:%M")
@@ -200,43 +283,104 @@ class GradioAdmin:
                 start_time=start_dt, 
                 end_time=end_dt
             )
-            EventService.create_event(self.db, event_data, merchant_id)
+            EventService.create_event(db, event_data, merchant_id)
+            db.commit()
             return "活動新增成功"
         except ValueError as e:
+            db.rollback()
             return f"日期格式錯誤: {str(e)}"
         except Exception as e:
+            print(f"Error in create_event: {e}")
+            db.rollback()
             return f"新增失敗: {str(e)}"
+        finally:
+            db.close()
 
     def delete_event(self, event_id: int) -> str:
-        EventService.delete_event(self.db, event_id)
-        return "活動已刪除"
+        db = self.get_db_session()
+        try:
+            EventService.delete_event(db, event_id)
+            db.commit()
+            return "活動已刪除"
+        except Exception as e:
+            print(f"Error in delete_event: {e}")
+            db.rollback()
+            return f"刪除失敗: {str(e)}"
+        finally:
+            db.close()
 
     # 門票管理
-    def get_tickets_data(self, event_id: int) -> pd.DataFrame:
-        tickets = TicketService.get_tickets_by_event_and_merchant(self.db, event_id, self.merchant_id)
-        data = []
-        for ticket in tickets:
-            data.append({
-                "ID": ticket.id,
-                "票種": ticket.ticket_type.name if ticket.ticket_type else "未知",
-                "持有人": ticket.holder_name,
-                "狀態": "已使用" if ticket.is_used else "未使用",
-                "建立時間": ticket.created_at.strftime("%Y-%m-%d %H:%M") if ticket.created_at else ""
-            })
-        return pd.DataFrame(data)
+    def get_tickets_data(self, event_id: int, merchant_id: int = None) -> pd.DataFrame:
+        """獲取票券數據"""
+        if not event_id:
+            return pd.DataFrame()
+        
+        db = self.get_db_session()
+        try:
+            # 如果有指定商戶ID，使用多租戶查詢，否則查詢所有票券
+            if merchant_id:
+                tickets = TicketService.get_tickets_by_event_and_merchant(db, event_id, merchant_id)
+            else:
+                # 為了相容性，如果沒有商戶ID，則查詢該活動的所有票券
+                from models.ticket import Ticket
+                from models.ticket_type import TicketType
+                tickets = (db.query(Ticket)
+                          .join(TicketType)
+                          .filter(TicketType.event_id == event_id)
+                          .all())
+            
+            data = []
+            for ticket in tickets:
+                data.append({
+                    "ID": ticket.id,
+                    "票種": ticket.ticket_type.name if ticket.ticket_type else "未知",
+                    "持有人": ticket.holder_name,
+                    "狀態": "已使用" if ticket.is_used else "未使用",
+                    "建立時間": ticket.created_at.strftime("%Y-%m-%d %H:%M") if ticket.created_at else ""
+                })
+            return pd.DataFrame(data)
+        except Exception as e:
+            print(f"Error in get_tickets_data: {e}")
+            db.rollback()
+            return pd.DataFrame()
+        finally:
+            db.close()
 
     # 簽到記錄查看
-    def get_checkin_records(self, event_id: int) -> pd.DataFrame:
-        tickets = TicketService.get_tickets_by_event_and_merchant(self.db, event_id, self.merchant_id)
-        data = []
-        for ticket in tickets:
-            if ticket.checked_in:
-                data.append({
-                    "票號": ticket.id,
-                    "姓名": ticket.holder_name,
-                    "簽到時間": ticket.checkin_time.strftime("%Y-%m-%d %H:%M") if ticket.checkin_time else ""
-                })
-        return pd.DataFrame(data)
+    def get_checkin_records(self, event_id: int, merchant_id: int = None) -> pd.DataFrame:
+        """獲取簽到記錄"""
+        if not event_id:
+            return pd.DataFrame()
+        
+        db = self.get_db_session()
+        try:
+            # 如果有指定商戶ID，使用多租戶查詢，否則查詢所有簽到記錄
+            if merchant_id:
+                tickets = TicketService.get_tickets_by_event_and_merchant(db, event_id, merchant_id)
+            else:
+                # 為了相容性，如果沒有商戶ID，則查詢該活動的所有票券
+                from models.ticket import Ticket
+                from models.ticket_type import TicketType
+                tickets = (db.query(Ticket)
+                          .join(TicketType)
+                          .filter(TicketType.event_id == event_id)
+                          .all())
+            
+            data = []
+            for ticket in tickets:
+                if ticket.checked_in:
+                    data.append({
+                        "票號": ticket.id,
+                        "姓名": ticket.holder_name,
+                        "簽到時間": ticket.checkin_time.strftime("%Y-%m-%d %H:%M") if ticket.checkin_time else ""
+                    })
+            return pd.DataFrame(data)
+        except Exception as e:
+            print(f"Error in get_checkin_records: {e}")
+            db.rollback()
+            return pd.DataFrame()
+        finally:
+            db.close()
     
     def create_interface(self):
         """創建Gradio界面"""
@@ -349,26 +493,37 @@ class GradioAdmin:
 
             # 門票管理
             with gr.Tab("門票管理"):
-                ticket_event_id = gr.Number(label="活動ID")
-                ticket_table = gr.Dataframe(headers=["ID", "票種", "持有人", "狀態", "簽到時間"])
+                with gr.Row():
+                    ticket_merchant_id = gr.Number(label="商戶ID (選填)", info="留空則查詢所有商戶")
+                    ticket_event_id = gr.Number(label="活動ID")
+                ticket_table = gr.Dataframe(headers=["ID", "票種", "持有人", "狀態", "建立時間"])
                 ticket_refresh_btn = gr.Button("刷新門票列表")
-                ticket_refresh_btn.click(self.get_tickets_data, inputs=[ticket_event_id], outputs=[ticket_table])
+                ticket_refresh_btn.click(self.get_tickets_data, inputs=[ticket_event_id, ticket_merchant_id], outputs=[ticket_table])
 
             # 簽到記錄
             with gr.Tab("簽到記錄"):
-                checkin_event_id = gr.Number(label="活動ID")
+                with gr.Row():
+                    checkin_merchant_id = gr.Number(label="商戶ID (選填)", info="留空則查詢所有商戶")
+                    checkin_event_id = gr.Number(label="活動ID")
                 checkin_table = gr.Dataframe(headers=["票號", "姓名", "簽到時間"])
                 checkin_refresh_btn = gr.Button("刷新簽到記錄")
-                checkin_refresh_btn.click(self.get_checkin_records, inputs=[checkin_event_id], outputs=[checkin_table])
+                checkin_refresh_btn.click(self.get_checkin_records, inputs=[checkin_event_id, checkin_merchant_id], outputs=[checkin_table])
 
             # 事件處理
             def handle_login(password):
                 return self.authenticate_admin(password)
             
             def update_merchant_dropdown():
-                merchants = MerchantService.get_merchants(self.db)
-                choices = [(f"{m.name} (ID: {m.id})", m.id) for m in merchants]
-                return gr.update(choices=choices)
+                db = self.get_db_session()
+                try:
+                    merchants = MerchantService.get_merchants(db)
+                    choices = [(f"{m.name} (ID: {m.id})", m.id) for m in merchants]
+                    return gr.update(choices=choices)
+                except Exception as e:
+                    print(f"Error in update_merchant_dropdown: {e}")
+                    return gr.update(choices=[])
+                finally:
+                    db.close()
             
             # 綁定事件
             login_btn.click(

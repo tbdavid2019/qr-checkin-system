@@ -75,6 +75,53 @@
 
 ## 🚀 部署與運行
 
+### Docker 部署 (推薦) (NEW!)
+
+我們提供了完整的 Docker 部署方案，包含自動化腳本和容器管理工具：
+
+#### 快速 Docker 部署
+```bash
+# 一鍵部署（包含資料庫、API、Gradio）
+./deploy-docker.sh
+
+# 或使用 Docker Compose
+docker-compose up -d
+
+# 檢查服務健康狀態
+./health-check.sh
+```
+
+#### Docker 容器管理
+```bash
+# 使用容器管理腳本
+./docker-manager.sh
+
+# 選項包括:
+# 1) 啟動所有服務
+# 2) 停止所有服務  
+# 3) 重建並啟動
+# 4) 查看服務狀態
+# 5) 查看服務日誌
+# 6) 清理容器和映像
+```
+
+#### 容器監控
+```bash
+# 持續監控容器狀態
+./docker-monitor.sh
+
+# 資料備份
+./docker-backup.sh
+```
+
+#### 服務端點
+- **API 服務**: http://localhost:8000
+- **API 文檔**: http://localhost:8000/docs
+- **Gradio 管理介面**: http://localhost:7860
+- **PostgreSQL**: localhost:5432
+
+### 手動部署
+
 ### 1. 環境準備
 ```bash
 # 克隆專案
@@ -204,13 +251,66 @@ Staff-ID: 1                    # 該商戶下的員工ID
 └── ... (其他表保持不變)
 ```
 
-#### Gradio 管理介面功能
+#### Gradio 管理介面功能 (ENHANCED!)
 - **商戶管理**: 創建、查看、更新商戶資訊
 - **API Key 管理**: 生成、查看、撤銷API Key
 - **統計面板**: 查看各商戶的活動、票券、員工統計
 - **系統概覽**: 整體多租戶系統統計
+- **多租戶安全**: 所有查詢均支援 merchant_id 過濾，確保資料隔離
+- **會話管理**: 採用 sessionmaker 管理資料庫會話，避免會話衝突
+- **即時更新**: 介面元件即時反映資料庫變更
 
 ## 🧪 測試
+
+### API 測試套件 (NEW!)
+
+我們提供了完整的 API 測試套件，支援快速測試、認證測試、完整系統測試等多種場景：
+
+#### 測試套件主選單
+```bash
+# 啟動測試套件主選單
+./test_suite.sh
+
+# 選項包括:
+# 1) 快速 API 測試 (test_api_quick.sh)
+# 2) 認證系統測試 (test_api_auth.sh)
+# 3) 真實 API 測試 (test_real_apis.sh)
+# 4) 完整 API 測試 (test_complete_apis.sh)
+# 5) 多租戶 API 測試 (test_multi_tenant_apis.py)
+# 6) Swagger 文檔測試 (test_swagger_apis.sh)
+```
+
+#### 各測試腳本說明
+
+**1. 快速 API 測試** (`test_api_quick.sh`)
+```bash
+# 測試基本 API 端點和健康檢查
+./test_api_quick.sh
+```
+
+**2. 認證系統測試** (`test_api_auth.sh`)
+```bash
+# 測試員工認證、API Key 驗證等
+./test_api_auth.sh
+```
+
+**3. 真實 API 測試** (`test_real_apis.sh`)
+```bash
+# 測試完整的業務流程，包括票券創建、簽到等
+./test_real_apis.sh
+```
+
+**4. 完整 API 測試** (`test_complete_apis.sh`)
+```bash
+# 最全面的 API 測試，包含所有端點和邊界案例
+./test_complete_apis.sh
+```
+
+**5. 多租戶 API 測試** (`test_multi_tenant_apis.py`)
+```bash
+# 專門測試多租戶功能的 Python 測試腳本
+python test_multi_tenant_apis.py
+```
 
 ### 功能測試
 ```bash
@@ -219,11 +319,15 @@ python test_complete_system.py
 
 # 簡化認證測試
 python test_simple_auth.py
+
+# 多租戶完整測試
+python test_multi_tenant.py
 ```
 
 ### 測試賬號
 - **管理員**: 用戶名 `admin`, 密碼 `admin123`
 - **掃描員**: 登入碼參見測試資料創建輸出
+- **多租戶測試**: 使用 `setup_multi_tenant.py` 創建的示例商戶
 
 ## 📡 API 使用說明
 
@@ -429,3 +533,352 @@ python gradio_admin.py  # http://localhost:7860
 - 100%數據隔離保證
 - 可視化管理介面
 - 完整的API文檔
+
+---
+
+# QR Check-in System - English Documentation
+
+## 📋 Project Overview
+
+A comprehensive QR Code check-in system built with FastAPI, supporting ticket management, staff authentication, check-in validation, offline synchronization, and **multi-tenant architecture** for serving multiple merchants with isolated data.
+
+## ✅ Completed Features
+
+### 🏢 Multi-Tenant Architecture
+- **Merchant Management**: Support for multiple independent merchants with dedicated API Keys
+- **Data Isolation**: Complete data separation between different merchants
+- **API Key Management**: Dynamic generation and management of merchant-specific API Keys
+- **Gradio Admin Interface**: Visual merchant and API Key management interface
+- **Statistics Dashboard**: Independent statistics for each merchant
+
+### 🔐 Authentication System
+- **Dual Mode Support**: Single-tenant and multi-tenant operation modes
+- **API Key Authentication**: Merchant-specific API Key based authentication
+- **Staff Verification**: Support for username/password and login code methods
+- **Permission Control**: Permission management based on staff-event associations
+- **Tenant Isolation**: Ensures staff can only operate on their merchant's data
+
+### 🎫 Ticket Management
+- **Ticket Creation**: Single ticket and batch ticket creation
+- **QR Code Generation**: JWT Token-based QR Code generation
+- **Ticket Verification**: QR Token validation (without check-in execution)
+- **Ticket Queries**: Query functionality based on events, ticket IDs, etc.
+
+### 🎯 Check-in System
+- **QR Code Check-in**: Scan QR Code for ticket validation
+- **Duplicate Prevention**: Security mechanism to prevent duplicate check-ins
+- **IP/User-Agent Recording**: Record check-in source information
+- **Check-in History**: Complete check-in history management
+
+### 🔄 Offline Synchronization
+- **Offline Check-in Cache**: Support for check-in records in offline environments
+- **Batch Sync**: Batch upload of offline check-in records when network recovers
+- **Duplicate Handling**: Intelligent handling of duplicate check-in records
+
+### 📊 Management Features
+- **Check-in Cancellation**: Administrators can cancel incorrect check-in records
+- **Statistical Reports**: Event statistics, ticket type statistics, etc.
+- **Data Export**: CSV format export for check-in records and ticket lists
+- **Event Management**: Event creation, updates, ticket type management
+
+## 🏗️ Technical Architecture
+
+### Backend Tech Stack
+- **FastAPI**: Modern Python Web framework
+- **SQLAlchemy**: ORM for database operations
+- **PostgreSQL**: Primary database
+- **Alembic**: Database migration management
+- **Pydantic**: Data validation and serialization
+
+### Database Design
+```
+📊 Core Data Tables:
+├── merchants (Merchants)
+├── api_keys (API Keys)
+├── events (Events) - with merchant_id
+├── ticket_types (Ticket Types)
+├── tickets (Tickets)
+├── staff (Staff) - with merchant_id
+├── staff_events (Staff-Event Permissions)
+└── checkin_logs (Check-in Records)
+```
+
+### API Design
+```
+🌐 API Endpoints:
+├── /api/staff/* (Staff authentication & management)
+├── /api/tickets/* (Ticket management)
+├── /api/checkin/* (Check-in functionality)
+├── /api/events/* (Event management)
+├── /admin/api/* (Admin APIs)
+└── /admin/merchants/* (Multi-tenant merchant management)
+```
+
+## 🚀 Deployment & Setup
+
+### Docker Deployment (Recommended)
+
+#### Quick Docker Deployment
+```bash
+# One-click deployment (includes database, API, Gradio)
+./deploy-docker.sh
+
+# Or use Docker Compose
+docker-compose up -d
+
+# Check service health status
+./health-check.sh
+```
+
+#### Docker Container Management
+```bash
+# Use container management script
+./docker-manager.sh
+
+# Options include:
+# 1) Start all services
+# 2) Stop all services  
+# 3) Rebuild and start
+# 4) View service status
+# 5) View service logs
+# 6) Clean containers and images
+```
+
+#### Service Endpoints
+- **API Service**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
+- **Gradio Admin Interface**: http://localhost:7860
+- **PostgreSQL**: localhost:5432
+
+### Multi-Tenant Mode Setup
+
+#### Enable Multi-Tenant Mode
+```bash
+# Set in .env file
+ENABLE_MULTI_TENANT=1
+ADMIN_PASSWORD=your-secure-admin-password
+GRADIO_PORT=7860
+```
+
+#### Run Database Migration (Multi-tenant Support)
+```bash
+# Upgrade to latest database schema
+alembic upgrade head
+```
+
+#### Setup Sample Merchants
+```bash
+# Create sample merchants and API Keys
+python setup_multi_tenant.py
+```
+
+#### Start Gradio Admin Interface
+```bash
+# Start merchant management interface
+python gradio_admin.py
+
+# Access: http://localhost:7860
+# Login with ADMIN_PASSWORD
+```
+
+## 🧪 Testing
+
+### API Test Suite
+
+We provide a comprehensive API test suite supporting quick tests, authentication tests, complete system tests, and more:
+
+#### Test Suite Main Menu
+```bash
+# Start test suite main menu
+./test_suite.sh
+
+# Options include:
+# 1) Quick API Test (test_api_quick.sh)
+# 2) Authentication System Test (test_api_auth.sh)
+# 3) Real API Test (test_real_apis.sh)
+# 4) Complete API Test (test_complete_apis.sh)
+# 5) Multi-tenant API Test (test_multi_tenant_apis.py)
+# 6) Swagger Documentation Test (test_swagger_apis.sh)
+```
+
+#### Individual Test Scripts
+
+**1. Quick API Test** (`test_api_quick.sh`)
+```bash
+# Test basic API endpoints and health checks
+./test_api_quick.sh
+```
+
+**2. Authentication System Test** (`test_api_auth.sh`)
+```bash
+# Test staff authentication, API Key validation, etc.
+./test_api_auth.sh
+```
+
+**3. Real API Test** (`test_real_apis.sh`)
+```bash
+# Test complete business workflows including ticket creation, check-ins, etc.
+./test_real_apis.sh
+```
+
+**4. Complete API Test** (`test_complete_apis.sh`)
+```bash
+# Most comprehensive API test including all endpoints and edge cases
+./test_complete_apis.sh
+```
+
+**5. Multi-tenant API Test** (`test_multi_tenant_apis.py`)
+```bash
+# Python test script specifically for multi-tenant functionality
+python test_multi_tenant_apis.py
+```
+
+### Multi-Tenant API Endpoints
+
+#### Merchant Management (Admin privileges required)
+```bash
+# Create new merchant
+POST /admin/merchants
+
+# Get merchant list
+GET /admin/merchants
+
+# Create API Key for merchant
+POST /admin/merchants/{merchant_id}/api-keys
+
+# Get merchant statistics
+GET /admin/merchants/{merchant_id}/statistics
+```
+
+#### Multi-Tenant Authentication
+In multi-tenant mode, API authentication uses merchant-specific API Keys:
+
+```http
+X-API-Key: qr_abc123def456...  # Merchant-specific API Key
+Staff-ID: 1                    # Staff ID under that merchant
+```
+
+## 📡 API Usage Guide
+
+### Authentication Method
+All APIs requiring authentication use Header authentication:
+```http
+X-API-Key: test-api-key
+Staff-ID: 1
+```
+
+### Core Workflow Examples
+
+#### 1. Staff Verification
+```bash
+curl -X POST "http://localhost:8000/api/staff/verify" \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin123"}'
+```
+
+#### 2. Get Ticket QR Code
+```bash
+curl -X GET "http://localhost:8000/api/tickets/1/qrcode"
+```
+
+#### 3. Ticket Verification
+```bash
+curl -X POST "http://localhost:8000/api/tickets/verify" \
+  -H "Content-Type: application/json" \
+  -d '{"qr_token": "eyJhbGci..."}'
+```
+
+#### 4. Execute Check-in
+```bash
+curl -X POST "http://localhost:8000/api/checkin" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: test-api-key" \
+  -H "Staff-ID: 1" \
+  -d '{"qr_token": "eyJhbGci...", "event_id": 1}'
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+```bash
+# Database connection
+DATABASE_URL=postgresql://qr_admin:qr_pass@localhost:5432/qr_system
+
+# Authentication settings
+API_KEY=test-api-key
+SECRET_KEY=your-secret-key-change-in-production
+
+# Multi-tenant settings
+ENABLE_MULTI_TENANT=1
+ADMIN_PASSWORD=your-secure-admin-password
+
+# QR Code settings
+QR_TOKEN_EXPIRE_HOURS=168  # 7 days expiration
+```
+
+## 🎯 Key Features
+
+### 1. Platform Agnostic
+- RESTful API design supporting any frontend technology
+- Standard HTTP interface, easy to integrate
+
+### 2. Offline Support
+- Ticket data pre-download
+- Offline check-in record caching
+- Automatic sync when network recovers
+
+### 3. Security Mechanisms
+- JWT Token anti-forgery
+- API Key authentication
+- Hierarchical permission management
+- IP and device information recording
+
+### 4. Scalability
+- Modular service layer design
+- Clear database architecture
+- Support for horizontal scaling
+
+### 5. Multi-Tenant Security
+- Complete data isolation between merchants
+- Merchant-specific API Keys
+- Tenant-aware queries at all levels
+- Session management with sessionmaker
+
+## 📈 Performance Metrics
+
+### Test Results
+```
+🏁 Testing Complete! Passed: 8, Failed: 0
+🎉 All tests passed!
+
+✅ Merchant creation and management
+✅ API Key generation and validation
+✅ Staff multi-tenant isolation
+✅ Event multi-tenant isolation
+✅ Inter-tenant data isolation
+✅ Merchant statistics functionality
+✅ API Key permission management
+✅ System health checks
+```
+
+## 🔮 Future Enhancements
+
+### Potential Feature Additions
+1. **Frontend Interface**: React/Vue.js admin interface
+2. **Mobile Applications**: iOS/Android scanning apps
+3. **Real-time Notifications**: WebSocket real-time updates
+4. **Advanced Reports**: More detailed statistical analysis
+5. **Multi-language Support**: Internationalization features
+6. **API Versioning**: v2 API design
+
+## 📞 Technical Support
+
+- **API Documentation**: http://localhost:8000/docs
+- **Health Check**: http://localhost:8000/health
+- **Test Scripts**: Various test scripts in `test_*.sh` and `test_*.py`
+- **API Testing Guide**: [API_TESTING_README.md](API_TESTING_README.md)
+
+---
+
+**QR Check-in System v2.0** 🎉  
+*Complete Ticket Check-in Solution with Enterprise-Grade Multi-Tenant Architecture*
