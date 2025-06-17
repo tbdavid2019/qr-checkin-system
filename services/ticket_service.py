@@ -59,6 +59,14 @@ class TicketService:
         return db.query(Ticket).filter(Ticket.id == ticket_id).first()
     
     @staticmethod
+    def get_ticket_by_id_and_merchant(db: Session, ticket_id: int, merchant_id: int = None) -> Optional[Ticket]:
+        """根據 ID 與 merchant_id 獲取票券（多租戶安全）"""
+        query = db.query(Ticket).filter(Ticket.id == ticket_id)
+        if merchant_id:
+            query = query.join(Event).filter(Event.merchant_id == merchant_id)
+        return query.first()
+
+    @staticmethod
     def get_ticket_by_code(db: Session, ticket_code: str) -> Optional[Ticket]:
         """根據票券代碼獲取票券"""
         return db.query(Ticket).filter(Ticket.ticket_code == ticket_code).first()
@@ -67,6 +75,25 @@ class TicketService:
     def get_tickets_by_event(db: Session, event_id: int, skip: int = 0, limit: int = 100) -> List[Ticket]:
         """獲取活動的所有票券"""
         return db.query(Ticket).filter(Ticket.event_id == event_id).offset(skip).limit(limit).all()
+    
+    @staticmethod
+    def get_tickets_by_event_and_merchant(db: Session, event_id: int, merchant_id: int = None, skip: int = 0, limit: int = 100) -> List[Ticket]:
+        """根據 event_id 與 merchant_id 查詢票券（多租戶安全）"""
+        query = db.query(Ticket).filter(Ticket.event_id == event_id)
+        if merchant_id:
+            query = query.join(Event).filter(Event.merchant_id == merchant_id)
+        return query.offset(skip).limit(limit).all()
+
+    @staticmethod
+    def delete_ticket(db: Session, ticket_id: int) -> bool:
+        """刪除票券"""
+        ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+        if not ticket:
+            return False
+        
+        db.delete(ticket)
+        db.commit()
+        return True
     
     @staticmethod
     def update_ticket(db: Session, ticket_id: int, ticket_data: TicketUpdate) -> Optional[Ticket]:
@@ -91,4 +118,66 @@ class TicketService:
             ticket.is_used = True
             db.commit()
             db.refresh(ticket)
+        return ticket
+    
+    @staticmethod
+    def create_batch_tickets_with_merchant(db: Session, batch_data: BatchTicketCreate, merchant_id: int = None) -> List[Ticket]:
+        """批次建立票券（多租戶安全，驗證 event/ticket_type 屬於 merchant）"""
+        # 驗證 event 與 ticket_type 是否屬於 merchant
+        event = db.query(Event).filter(Event.id == batch_data.event_id)
+        ticket_type_query = db.query(TicketType).filter(TicketType.id == batch_data.ticket_type_id)
+        if merchant_id:
+            event = event.filter(Event.merchant_id == merchant_id)
+            # 透過 event 關聯確認票種屬於該商戶
+            ticket_type_query = ticket_type_query.join(Event).filter(Event.merchant_id == merchant_id)
+        if not event.first() or not ticket_type_query.first():
+            raise Exception("Event 或 TicketType 不屬於此商戶")
+        
+        tickets = []
+        for i in range(batch_data.count):
+            # 生成唯一票券代碼
+            while True:
+                ticket_code = generate_ticket_code()
+                if not db.query(Ticket).filter(Ticket.ticket_code == ticket_code).first():
+                    break
+            ticket = Ticket(
+                event_id=batch_data.event_id,
+                ticket_type_id=batch_data.ticket_type_id,
+                ticket_code=ticket_code,
+                holder_name=f"{batch_data.holder_name_prefix}{i+1:03d}"
+            )
+            tickets.append(ticket)
+            db.add(ticket)
+        db.commit()
+        for ticket in tickets:
+            db.refresh(ticket)
+        return tickets
+    
+    @staticmethod
+    def delete_ticket_by_merchant(db: Session, ticket_id: int, merchant_id: int = None) -> bool:
+        """刪除票券（多租戶安全）"""
+        query = db.query(Ticket).filter(Ticket.id == ticket_id)
+        if merchant_id:
+            query = query.join(Event).filter(Event.merchant_id == merchant_id)
+        ticket = query.first()
+        if not ticket:
+            return False
+        db.delete(ticket)
+        db.commit()
+        return True
+
+    @staticmethod
+    def update_ticket_by_merchant(db: Session, ticket_id: int, ticket_data: TicketUpdate, merchant_id: int = None) -> Optional[Ticket]:
+        """多租戶安全地更新票券資訊"""
+        query = db.query(Ticket).filter(Ticket.id == ticket_id)
+        if merchant_id:
+            query = query.join(Event).filter(Event.merchant_id == merchant_id)
+        ticket = query.first()
+        if not ticket:
+            return None
+        update_data = ticket_data.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(ticket, field, value)
+        db.commit()
+        db.refresh(ticket)
         return ticket

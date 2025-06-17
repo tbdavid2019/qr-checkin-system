@@ -26,7 +26,7 @@ def get_ticket_qr_code(
     db: Session = Depends(get_db)
 ):
     """產生票券 QR code（使用者前端）"""
-    ticket = TicketService.get_ticket_by_id(db, ticket_id)
+    ticket = TicketService.get_ticket_by_id(ticket_id)
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     
@@ -48,8 +48,12 @@ def get_ticket_qr_code(
         "holder_name": ticket.holder_name
     }
 
-@router.post("/verify", response_model=TicketVerifyResponse, dependencies=[Depends(require_api_key)])
-def verify_ticket(verify_request: TicketVerifyRequest, db: Session = Depends(get_db)):
+@router.post("/verify", response_model=TicketVerifyResponse)
+def verify_ticket(
+    verify_request: TicketVerifyRequest, 
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
+):
     """驗證 QR Token（不核銷）"""
     payload = verify_qr_token(verify_request.qr_token)
     if not payload:
@@ -61,7 +65,7 @@ def verify_ticket(verify_request: TicketVerifyRequest, db: Session = Depends(get
     ticket_id = payload.get("ticket_id")
     event_id = payload.get("event_id")
     
-    ticket = TicketService.get_ticket_by_id(db, ticket_id)
+    ticket = TicketService.get_ticket_by_id_and_merchant(db, ticket_id, merchant.id if merchant else None)
     if not ticket:
         return TicketVerifyResponse(
             valid=False,
@@ -89,30 +93,61 @@ def verify_ticket(verify_request: TicketVerifyRequest, db: Session = Depends(get
         message="Valid ticket"
     )
 
-@router.get("/{ticket_id}", response_model=Ticket, dependencies=[Depends(require_api_key)])
-def get_ticket(ticket_id: int, db: Session = Depends(get_db)):
+@router.get("/{ticket_id}", response_model=Ticket)
+def get_ticket(
+    ticket_id: int, 
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
+):
     """查詢票券詳細資料"""
-    ticket = TicketService.get_ticket_by_id(db, ticket_id)
+    ticket = TicketService.get_ticket_by_id_and_merchant(db, ticket_id, merchant.id if merchant else None)
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     return ticket
 
-@router.get("", response_model=List[Ticket], dependencies=[Depends(require_api_key)])
+@router.get("", response_model=List[Ticket])
 def get_tickets(
     event_id: int,
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
 ):
-    """查詢活動票券清單"""
-    tickets = TicketService.get_tickets_by_event(db, event_id, skip, limit)
+    """查詢活動票券清單（多租戶安全）"""
+    tickets = TicketService.get_tickets_by_event_and_merchant(db, event_id, merchant.id if merchant else None, skip, limit)
     return tickets
 
-@router.post("/batch", response_model=List[Ticket], dependencies=[Depends(require_api_key)])
+@router.post("/batch", response_model=List[Ticket])
 def create_batch_tickets(
     batch_data: BatchTicketCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
 ):
-    """批次產票（指定票種與數量）"""
-    tickets = TicketService.create_batch_tickets(db, batch_data)
+    """批次產票（多租戶安全）"""
+    tickets = TicketService.create_batch_tickets_with_merchant(db, batch_data, merchant.id if merchant else None)
     return tickets
+
+@router.put("/{ticket_id}", response_model=Ticket)
+def update_ticket(
+    ticket_id: int,
+    ticket_data: TicketUpdate,
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
+):
+    """多租戶安全地更新票券資訊"""
+    ticket = TicketService.update_ticket_by_merchant(db, ticket_id, ticket_data, merchant.id if merchant else None)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found or no permission")
+    return ticket
+
+@router.delete("/{ticket_id}", response_model=APIResponse)
+def delete_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
+):
+    """多租戶安全地刪除票券"""
+    success = TicketService.delete_ticket_by_merchant(db, ticket_id, merchant.id if merchant else None)
+    if not success:
+        raise HTTPException(status_code=404, detail="Ticket not found or no permission")
+    return APIResponse(success=True, message="Ticket deleted")

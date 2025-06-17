@@ -213,21 +213,21 @@ class GradioAdmin:
 
     # 門票管理
     def get_tickets_data(self, event_id: int) -> pd.DataFrame:
-        tickets = TicketService.get_tickets_by_event(self.db, event_id)
+        tickets = TicketService.get_tickets_by_event_and_merchant(self.db, event_id, self.merchant_id)
         data = []
         for ticket in tickets:
             data.append({
                 "ID": ticket.id,
-                "票種": ticket.ticket_type,
+                "票種": ticket.ticket_type.name if ticket.ticket_type else "未知",
                 "持有人": ticket.holder_name,
-                "狀態": "已簽到" if ticket.checked_in else "未簽到",
-                "簽到時間": ticket.checkin_time.strftime("%Y-%m-%d %H:%M") if ticket.checkin_time else ""
+                "狀態": "已使用" if ticket.is_used else "未使用",
+                "建立時間": ticket.created_at.strftime("%Y-%m-%d %H:%M") if ticket.created_at else ""
             })
         return pd.DataFrame(data)
 
     # 簽到記錄查看
     def get_checkin_records(self, event_id: int) -> pd.DataFrame:
-        tickets = TicketService.get_tickets_by_event(self.db, event_id)
+        tickets = TicketService.get_tickets_by_event_and_merchant(self.db, event_id, self.merchant_id)
         data = []
         for ticket in tickets:
             if ticket.checked_in:

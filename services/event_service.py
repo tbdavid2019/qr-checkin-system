@@ -32,9 +32,9 @@ class EventService:
         return db.query(Event).offset(skip).limit(limit).all()
     
     @staticmethod
-    def get_events_by_merchant(db: Session, merchant_id: int) -> List[Event]:
-        """獲取指定商戶的活動列表"""
-        return db.query(Event).filter(Event.merchant_id == merchant_id).all()
+    def get_events_by_merchant(db: Session, merchant_id: int, skip: int = 0, limit: int = 100) -> List[Event]:
+        """獲取指定商戶的活動列表（支援分頁）"""
+        return db.query(Event).filter(Event.merchant_id == merchant_id).offset(skip).limit(limit).all()
     
     @staticmethod
     def update_event(db: Session, event_id: int, event_data: EventUpdate) -> Optional[Event]:
@@ -64,6 +64,17 @@ class EventService:
     def get_ticket_types_by_event(db: Session, event_id: int) -> List[TicketType]:
         """獲取活動的票種列表"""
         return db.query(TicketType).filter(TicketType.event_id == event_id).all()
+    
+    @staticmethod
+    def get_ticket_type_by_id_and_merchant(db: Session, ticket_type_id: int, merchant_id: Optional[int] = None) -> Optional[TicketType]:
+        """根據 ID 獲取票種（多租戶支援）"""
+        query = db.query(TicketType).filter(TicketType.id == ticket_type_id)
+        
+        if merchant_id is not None:
+            # 多租戶模式：透過 event 關聯確認票種屬於該商戶
+            query = query.join(Event).filter(Event.merchant_id == merchant_id)
+        
+        return query.first()
     
     @staticmethod
     def update_ticket_type(db: Session, ticket_type_id: int, ticket_type_data: TicketTypeUpdate) -> Optional[TicketType]:
@@ -99,3 +110,28 @@ class EventService:
             })
         
         return result
+    
+    @staticmethod
+    def delete_event(db: Session, event_id: int) -> bool:
+        """刪除活動"""
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            return False
+        
+        db.delete(event)
+        db.commit()
+        return True
+    
+    @staticmethod
+    def delete_ticket_type_by_merchant(db: Session, ticket_type_id: int, merchant_id: Optional[int] = None) -> bool:
+        """刪除票券類型（多租戶安全）"""
+        query = db.query(TicketType).filter(TicketType.id == ticket_type_id)
+        if merchant_id:
+            # 透過 event 關聯確認票種屬於該商戶
+            query = query.join(Event).filter(Event.merchant_id == merchant_id)
+        ticket_type = query.first()
+        if not ticket_type:
+            return False
+        db.delete(ticket_type)
+        db.commit()
+        return True

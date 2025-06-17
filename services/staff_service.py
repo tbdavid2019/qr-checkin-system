@@ -104,6 +104,12 @@ class StaffService:
         if existing_staff:
             raise ValueError(f"用戶名 '{staff_data.username}' 已存在")
         
+        # 檢查 email 是否已存在（如果提供了 email）
+        if staff_data.email:
+            existing_email = db.query(Staff).filter(Staff.email == staff_data.email).first()
+            if existing_email:
+                raise ValueError(f"Email '{staff_data.email}' 已被其他員工使用")
+        
         # 創建新員工
         hashed_password = get_password_hash(staff_data.password)
         
