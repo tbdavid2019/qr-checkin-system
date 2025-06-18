@@ -215,22 +215,14 @@ main() {
     
     # 批次創建票券
     batch_tickets_data='{
-        "tickets": [
-            {
-                "holder_name": "批次用戶1",
-                "holder_email": "batch1@example.com",
-                "holder_phone": "0900000002"
-            },
-            {
-                "holder_name": "批次用戶2", 
-                "holder_email": "batch2@example.com",
-                "holder_phone": "0900000003"
-            }
-        ],
-        "ticket_type_id": '$TEST_TICKET_TYPE_ID'
+        "event_id": '$TEST_EVENT_ID',
+        "ticket_type_id": '$TEST_TICKET_TYPE_ID',
+        "count": 2,
+        "holder_name_prefix": "Swagger測試",
+        "description": "{\"source\": \"swagger_test\", \"batch\": true}"
     }'
     if [ ! -z "$TEST_TICKET_TYPE_ID" ]; then
-        test_api "POST" "/admin/tickets/batch" "$batch_tickets_data" "批次創建票券"
+        test_api "POST" "/api/tickets/batch" "$batch_tickets_data" "批次創建票券"
     fi
     
     # 獲取活動的票券

@@ -177,8 +177,9 @@ main() {
     batch_tickets_data='{
         "event_id": 1,
         "ticket_type_id": 1,
-        "quantity": 3,
-        "holder_prefix": "批次用戶"
+        "count": 3,
+        "holder_name_prefix": "批次用戶",
+        "description": "{\"batch_test\": true, \"created_by\": \"test_script\"}"
     }'
     test_api "POST" "/admin/api/tickets/batch" "$batch_tickets_data" "批次創建票券"
     

@@ -162,8 +162,9 @@ main() {
     batch_data='{
         "event_id": 1,
         "ticket_type_id": 1,
-        "quantity": 2,
-        "holder_prefix": "API測試"
+        "count": 2,
+        "holder_name_prefix": "API測試",
+        "description": "{\"test\": \"API批次測試\", \"zone\": \"A\"}"
     }'
     test_api "POST" "/admin/api/tickets/batch" "$batch_data" "批次創建票券" "$VALID_API_KEY" ""
     

@@ -119,7 +119,8 @@ def create_test_data():
                 ticket_code=generate_ticket_code(),
                 holder_name="張三",
                 holder_email="zhang@example.com",
-                holder_phone="0912345678"
+                holder_phone="0912345678",
+                description='{"seat": "A-01", "zone": "一般區", "entrance": "正門", "meal": "葷食"}'
             ),
             Ticket(
                 event_id=event.id,
@@ -127,7 +128,8 @@ def create_test_data():
                 ticket_code=generate_ticket_code(),
                 holder_name="李四",
                 holder_email="li@example.com",
-                holder_phone="0987654321"
+                holder_phone="0987654321",
+                description='{"seat": "VIP-05", "zone": "VIP區", "entrance": "VIP專屬入口", "meal": "素食", "parking": "B1-VIP車位"}'
             ),
             Ticket(
                 event_id=event.id,
@@ -135,7 +137,8 @@ def create_test_data():
                 ticket_code=generate_ticket_code(),
                 holder_name="王五",
                 holder_email="wang@example.com",
-                is_used=False
+                is_used=False,
+                description='{"seat": "S-25", "zone": "學生區", "entrance": "側門", "student_id": "B10512345"}'
             )
         ]
         
@@ -145,7 +148,7 @@ def create_test_data():
         
         for ticket in test_tickets:
             db.refresh(ticket)
-            print(f"✅ 建立票券: {ticket.holder_name} - {ticket.ticket_code}")
+            print(f"✅ 建立票券: {ticket.holder_name} - {ticket.ticket_code} (座位: {ticket.description})")
         
         print("\n🎉 測試數據建立完成！")
         print("\n📋 登入資訊:")

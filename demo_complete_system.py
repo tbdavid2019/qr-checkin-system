@@ -135,7 +135,8 @@ def demo_ticket_management():
         "event_id": 1,
         "ticket_type_id": 2,  # VIP票
         "count": 3,
-        "holder_name_prefix": "演示VIP票券"
+        "holder_name_prefix": "演示VIP票券",
+        "description": "{\"seat_zone\": \"VIP\", \"entrance\": \"Gate A\", \"floor\": 2}"
     }
     response = api_request("POST", "/admin/api/tickets/batch", 
                           data=batch_data, staff_id=ADMIN_STAFF_ID)
