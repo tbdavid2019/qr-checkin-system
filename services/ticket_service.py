@@ -3,7 +3,7 @@
 """
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from models import Ticket, Event, TicketType
 from schemas.ticket import TicketCreate, TicketUpdate, BatchTicketCreate
 from utils.security import generate_ticket_code
@@ -216,3 +216,37 @@ class TicketService:
         db.commit()
         db.refresh(ticket)
         return ticket
+    
+    @staticmethod
+    def get_tickets_by_holder_info(
+        db: Session, 
+        merchant_id: int,
+        email: Optional[str] = None,
+        phone: Optional[str] = None,
+        external_user_id: Optional[str] = None,
+        event_id: Optional[int] = None
+    ) -> List[Ticket]:
+        """根據持有人資訊查詢票券"""
+        query = db.query(Ticket).join(TicketType).join(Event)
+        
+        # 多租戶過濾
+        query = query.filter(Event.merchant_id == merchant_id)
+        
+        # 建立持有人條件
+        holder_conditions = []
+        if email:
+            holder_conditions.append(Ticket.holder_email == email)
+        if phone:
+            holder_conditions.append(Ticket.holder_phone == phone)
+        if external_user_id:
+            holder_conditions.append(Ticket.external_user_id == external_user_id)
+        
+        # 使用 OR 條件連接持有人查詢條件
+        if holder_conditions:
+            query = query.filter(or_(*holder_conditions))
+        
+        # 額外的活動過濾
+        if event_id:
+            query = query.filter(Ticket.event_id == event_id)
+        
+        return query.all()

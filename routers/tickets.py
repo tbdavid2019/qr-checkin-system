@@ -1,8 +1,8 @@
 """
 票券相關 API 路由
 """
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_active_staff, require_api_key
@@ -180,3 +180,40 @@ def delete_ticket(
     if not success:
         raise HTTPException(status_code=404, detail="Ticket not found or no permission")
     return APIResponse(success=True, message="Ticket deleted")
+
+@router.get("/holder-tickets", response_model=List[Ticket])
+def get_tickets_by_holder(
+    email: Optional[str] = Query(None, description="持有人電子郵件"),
+    phone: Optional[str] = Query(None, description="持有人電話"),
+    external_user_id: Optional[str] = Query(None, description="外部用戶ID"),
+    event_id: Optional[int] = Query(None, description="活動ID過濾"),
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
+):
+    """
+    根據持有人資訊查詢票券（管理端）
+    
+    可以使用以下任一條件查詢：
+    - email: 持有人電子郵件
+    - phone: 持有人電話  
+    - external_user_id: 外部用戶ID
+    
+    支援額外的 event_id 過濾條件
+    """
+    # 至少需要提供一個查詢條件
+    if not any([email, phone, external_user_id]):
+        raise HTTPException(
+            status_code=400, 
+            detail="必須提供至少一個查詢條件：email、phone 或 external_user_id"
+        )
+    
+    tickets = TicketService.get_tickets_by_holder_info(
+        db, 
+        merchant_id=merchant.id if merchant else None,
+        email=email, 
+        phone=phone, 
+        external_user_id=external_user_id,
+        event_id=event_id
+    )
+    
+    return tickets

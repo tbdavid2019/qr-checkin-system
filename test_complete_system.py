@@ -205,6 +205,65 @@ def test_batch_ticket_creation(event_id, token):
         print(f"❌ 批次產票失敗: {response.text}")
         return None
 
+def test_ticket_queries():
+    """測試票券查詢功能 (NEW!)"""
+    print("\n🔍 測試票券查詢功能...")
+    
+    # 需要 API Key 進行查詢
+    api_key = "qr_uaIPi98rFvDQqUpPeBqePwZGwVr3jJ5a"  # 使用有效的 API Key
+    headers = {"X-API-Key": api_key}
+    
+    # 1. 測試單張票券查詢
+    print("  1️⃣ 測試單張票券查詢...")
+    ticket_id = 4  # 使用已知存在的票券ID
+    response = requests.get(f"{BASE_URL}/api/tickets/{ticket_id}", headers=headers)
+    
+    if response.status_code == 200:
+        ticket = response.json()
+        print(f"    ✅ 查詢票券 {ticket_id} 成功")
+        print(f"    - 持票人: {ticket['holder_name']}")
+        print(f"    - 電子郵件: {ticket['holder_email']}")
+        print(f"    - 票券代碼: {ticket['ticket_code']}")
+        print(f"    - 描述: {ticket['description']}")
+    else:
+        print(f"    ❌ 查詢票券失敗: {response.status_code}")
+    
+    # 2. 測試根據電子郵件查詢票券
+    print("  2️⃣ 測試根據電子郵件查詢...")
+    response = requests.get(f"{BASE_URL}/api/tickets/holder/search?email=test@example.com", headers=headers)
+    
+    if response.status_code == 200:
+        tickets = response.json()
+        print(f"    ✅ 找到 {len(tickets)} 張票券")
+        for ticket in tickets:
+            print(f"    - {ticket['holder_name']}: {ticket['ticket_code']}")
+    else:
+        print(f"    ❌ 電子郵件查詢失敗: {response.status_code}")
+    
+    # 3. 測試根據電話查詢票券
+    print("  3️⃣ 測試根據電話查詢...")
+    response = requests.get(f"{BASE_URL}/api/tickets/holder/search?phone=0912345678", headers=headers)
+    
+    if response.status_code == 200:
+        tickets = response.json()
+        print(f"    ✅ 找到 {len(tickets)} 張票券")
+        for ticket in tickets:
+            print(f"    - {ticket['holder_name']}: {ticket['ticket_code']}")
+    else:
+        print(f"    ❌ 電話查詢失敗: {response.status_code}")
+    
+    # 4. 測試多條件查詢 + 活動過濾
+    print("  4️⃣ 測試多條件查詢...")
+    response = requests.get(f"{BASE_URL}/api/tickets/holder/search?email=zhang@example.com&event_id=1", headers=headers)
+    
+    if response.status_code == 200:
+        tickets = response.json()
+        print(f"    ✅ 多條件查詢找到 {len(tickets)} 張票券")
+        for ticket in tickets:
+            print(f"    - {ticket['holder_name']}: {ticket['ticket_code']} (活動ID: {ticket['event_id']})")
+    else:
+        print(f"    ❌ 多條件查詢失敗: {response.status_code}")
+
 def main():
     """主測試流程"""
     print("🚀 開始 QR Check-in System 完整功能測試")
@@ -248,7 +307,10 @@ def main():
     # 7. 測試離線同步
     test_offline_sync(event_id, token)
     
-    # 8. 測試批次產票
+    # 8. 測試票券查詢功能 (NEW!)
+    test_ticket_queries()
+    
+    # 9. 測試批次產票
     test_batch_ticket_creation(event_id, token)
     
     print("\n" + "=" * 50)

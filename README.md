@@ -2,7 +2,7 @@
 
 ## 📋 項目概覽
 
-這是一個基於 FastAPI 的綜合性 QR Code 簽到系統，支援票券管理、員工認證、簽到核銷、離線同步等完整功能。**現已支援多租戶架構**，可為多個商戶提供獨立的票券管理服務。
+這是一個基於 FastAPI的綜合性QR Code簽到系統，支援票券管理、員工認證、簽到核銷、離線同步等完整功能。**現已支援多租戶架構**，可為多個商戶提供獨立的票券管理服務。
 
 ## ✅ 已完成功能
 
@@ -323,6 +323,12 @@ Staff-ID: 1                    # 該商戶下的員工ID
 ./test_complete_apis.sh
 ```
 
+**5. 多租戶 API 測試** (`test_multi_tenant_apis.py`)
+```bash
+# Python 測試腳本，專門測試多租戶功能
+python test_multi_tenant_apis.py
+```
+
 **6. Swagger 文檔測試** (`test_swagger_apis.sh`)
 ```bash
 # 測試 Swagger 文檔中的所有 API 端點，包含 description 欄位
@@ -448,60 +454,33 @@ curl -X POST "http://localhost:8000/api/checkin" \
   -d '{"qr_token": "eyJhbGci...", "event_id": 1}'
 ```
 
-### 📝 Swagger 文檔說明
+### 票券查詢 API 使用說明 (NEW!)
+#### 3. 票券查詢
+```bash
+# 查詢單張票券詳細資料
+curl -X GET "http://localhost:8000/api/tickets/1" \
+  -H "X-API-Key: merchant-api-key"
 
-我們的 API 文檔包含完整的欄位說明和流程指引：
+# 根據持有人資訊查詢票券
+curl -X GET "http://localhost:8000/api/tickets/holder/search?email=user@example.com" \
+  -H "X-API-Key: merchant-api-key"
 
-#### 🔗 訪問 Swagger 文檔
-- **完整 API 文檔**: http://localhost:8000/docs
-- **ReDoc 格式**: http://localhost:8000/redoc
-
-#### 📋 主要功能區塊
-1. **認證管理**: 員工登入、API Key 驗證
-2. **商戶管理**: 多租戶商戶 CRUD 操作
-3. **活動管理**: 活動與票種管理
-4. **票券管理**: 票券產生、查詢、驗證
-5. **簽到系統**: QR Code 簽到與記錄
-
-#### 🎫 票券描述欄位 (description)
-票券支援 JSON 格式的描述欄位，可儲存：
-```json
-{
-  "seat": "A區第5排10號",
-  "meal": "素食",
-  "special_needs": "輪椅席",
-  "notes": "VIP專屬通道"
-}
+# 多條件查詢票券（支援 email、phone、external_user_id）
+curl -X GET "http://localhost:8000/api/tickets/holder/search?phone=0912345678&event_id=1" \
+  -H "X-API-Key: merchant-api-key"
 ```
 
-#### ⚠️ 重要流程提醒
-- **Swagger 文檔明確標註**：產生票券前必須先建立對應的票種
-- **所有 API 都有完整的參數說明**和範例
-- **錯誤回應格式統一**，便於除錯
-
-### 核心流程示例
-
-#### 1. 員工驗證
+#### 4. 票券驗證
 ```bash
-curl -X POST "http://localhost:8000/api/staff/verify" \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "admin123"}'
-```
-
-#### 2. 獲取票券 QR Code
-```bash
-curl -X GET "http://localhost:8000/api/tickets/1/qrcode"
-```
-
-#### 3. 票券驗證
-```bash
+# 驗證票券 QR Token
 curl -X POST "http://localhost:8000/api/tickets/verify" \
   -H "Content-Type: application/json" \
   -d '{"qr_token": "eyJhbGci..."}'
 ```
 
-#### 4. 執行簽到
+#### 5. 執行簽到
 ```bash
+# 執行票券簽到
 curl -X POST "http://localhost:8000/api/checkin" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: test-api-key" \
@@ -519,6 +498,10 @@ DATABASE_URL=postgresql://qr_admin:qr_pass@localhost:5432/qr_system
 # 認證設定
 API_KEY=test-api-key
 SECRET_KEY=your-secret-key-change-in-production
+
+# 多租戶設定
+ENABLE_MULTI_TENANT=1
+ADMIN_PASSWORD=your-secure-admin-password
 
 # QR Code 設定
 QR_TOKEN_EXPIRE_HOURS=168  # 7天過期
@@ -545,6 +528,12 @@ QR_TOKEN_EXPIRE_HOURS=168  # 7天過期
 - 模組化服務層設計
 - 清晰的資料庫架構
 - 支援水平擴展
+
+### 5. 多租戶安全
+- 完整的商戶間數據隔離
+- 商戶專屬的 API Key
+- 租戶感知的查詢和操作
+- 使用 sessionmaker 管理資料庫會話
 
 ## 📈 效能指標
 
@@ -778,11 +767,6 @@ The tickets table includes a new `description` field supporting JSON format:
 - **Example Format**: `{"seat": "A1", "meal": "vegetarian", "notes": "VIP"}`
 - **API Support**: All ticket CRUD operations support the description field
 - **Gradio Display**: Admin interface ticket list includes description field display
-├── tickets (Tickets)
-├── staff (Staff) - with merchant_id
-├── staff_events (Staff-Event Permissions)
-└── checkin_logs (Check-in Records)
-```
 
 ### API Design
 ```
@@ -791,8 +775,7 @@ The tickets table includes a new `description` field supporting JSON format:
 ├── /api/tickets/* (Ticket management)
 ├── /api/checkin/* (Check-in functionality)
 ├── /api/events/* (Event management)
-├── /admin/api/* (Admin APIs)
-└── /admin/merchants/* (Multi-tenant merchant management)
+└── /admin/api/* (Admin APIs)
 ```
 
 ## 🚀 Deployment & Setup
@@ -831,9 +814,61 @@ docker-compose up -d
 - **Gradio Admin Interface**: http://localhost:7860
 - **PostgreSQL**: localhost:5432
 
-### Multi-Tenant Mode Setup
+### Manual Deployment
 
-#### Enable Multi-Tenant Mode
+### 1. Environment Setup
+```bash
+# Clone the repository
+git clone <repository>
+cd qr-checkin-system
+
+# Create a virtual environment
+python -m venv myenv
+source myenv/bin/activate  # macOS/Linux
+# myenv\Scripts\activate     # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Configuration Files Setup
+```bash
+# Copy template files and fill in actual values
+cp alembic.ini.template alembic.ini
+cp .env.template .env
+
+# Edit alembic.ini to set database connection
+# Replace postgresql://DB_USER:DB_PASSWORD@DB_HOST:DB_PORT/DB_NAME
+# with actual database connection information
+
+# Edit .env to set environment variables
+# Including database URL, API keys, and other sensitive information
+```
+
+### 2. Database Setup
+```bash
+# Start PostgreSQL (using Docker)
+docker-compose up -d
+
+# Run database migrations
+alembic upgrade head
+
+# Create test data
+python create_test_data.py
+```
+
+### 3. Start Services
+```bash
+# Start API service
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# API Documentation: http://localhost:8000/docs
+# Health Check: http://localhost:8000/health
+```
+
+### 4. Multi-Tenant Mode Setup (NEW!)
+
+#### 4.1 Enable Multi-Tenant Mode
 ```bash
 # Set in .env file
 ENABLE_MULTI_TENANT=1
@@ -841,19 +876,19 @@ ADMIN_PASSWORD=your-secure-admin-password
 GRADIO_PORT=7860
 ```
 
-#### Run Database Migration (Multi-tenant Support)
+#### 4.2 Run Database Migration (Multi-Tenant Support)
 ```bash
 # Upgrade to latest database schema
 alembic upgrade head
 ```
 
-#### Setup Sample Merchants
+#### 4.3 Setup Sample Merchants
 ```bash
 # Create sample merchants and API Keys
 python setup_multi_tenant.py
 ```
 
-#### Start Gradio Admin Interface
+#### 4.4 Start Gradio Admin Interface
 ```bash
 # Start merchant management interface
 python gradio_admin.py
@@ -861,6 +896,67 @@ python gradio_admin.py
 # Access: http://localhost:7860
 # Login with ADMIN_PASSWORD
 ```
+
+#### 4.5 Multi-Tenant Functionality Testing
+```bash
+# Run full multi-tenant tests
+python test_multi_tenant.py
+```
+
+### Multi-Tenant API Endpoints
+
+#### Merchant Management (Admin privileges required)
+```bash
+# Create new merchant
+POST /admin/merchants
+
+# Get merchant list
+GET /admin/merchants
+
+# Create API Key for merchant
+POST /admin/merchants/{merchant_id}/api-keys
+
+# Get merchant statistics
+GET /admin/merchants/{merchant_id}/statistics
+```
+
+#### Multi-Tenant Authentication
+In multi-tenant mode, API authentication uses merchant-specific API Keys：
+
+```http
+X-API-Key: qr_abc123def456...  # Merchant-specific API Key
+Staff-ID: 1                    # Staff ID under that merchant
+```
+
+### 🏢 Multi-Tenant Architecture Explanation
+
+#### Merchant Isolation
+- **Data Isolation**: Complete data separation for each merchant's events, tickets, and staff
+- **API Key Isolation**: Dedicated API Key for different merchants
+- **Permission Control**: Staff can only operate on their own merchant's data
+
+#### Database Schema Updates
+```
+📊 Multi-Tenant Data Tables:
+├── merchants (Merchants)
+├── api_keys (API Keys)
+├── events (Events) - new merchant_id
+├── staff (Staff) - new merchant_id
+└── ... (other tables remain unchanged)
+```
+
+#### Gradio Admin Interface Features (ENHANCED!)
+- **Merchant Management**: Create, view, update merchant information
+- **API Key Management**: Generate, view, revoke API Keys
+- **Event Management**: Create events, edit event descriptions, delete events
+- **Ticket Viewing**: View ticket list including ticket type, holder, **description field**, status, creation time
+- **Staff Management**: View staff list under the merchant
+- **Check-in Records**: View check-in records for each event
+- **Statistics Dashboard**: View statistics for merchant's events, tickets, staff
+- **System Overview**: Overall multi-tenant system statistics
+- **Multi-Tenant Security**: All queries support merchant_id filtering to ensure data isolation
+- **Session Management**: Use sessionmaker to manage database sessions, avoid session conflicts
+- **Real-time Updates**: Interface components reflect database changes in real-time
 
 ## 🧪 Testing
 
@@ -914,63 +1010,157 @@ We provide a comprehensive API test suite supporting quick tests, authentication
 python test_multi_tenant_apis.py
 ```
 
-### Multi-Tenant API Endpoints
-
-#### Merchant Management (Admin privileges required)
+**6. Swagger 文檔測試** (`test_swagger_apis.sh`)
 ```bash
-# Create new merchant
-POST /admin/merchants
-
-# Get merchant list
-GET /admin/merchants
-
-# Create API Key for merchant
-POST /admin/merchants/{merchant_id}/api-keys
-
-# Get merchant statistics
-GET /admin/merchants/{merchant_id}/statistics
+# 測試 Swagger 文檔中的所有 API 端點，包含 description 欄位
+./test_swagger_apis.sh
 ```
 
-#### Multi-Tenant Authentication
-In multi-tenant mode, API authentication uses merchant-specific API Keys:
-
-```http
-X-API-Key: qr_abc123def456...  # Merchant-specific API Key
-Staff-ID: 1                    # Staff ID under that merchant
+#### 🎫 票券 description 欄位測試
+所有測試腳本都已支援 description 欄位測試：
+```bash
+# 批次產票測試（包含 description）
+curl -X POST "http://localhost:8000/api/tickets-mgmt/batch" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: test-api-key" \
+  -d '{
+    "ticket_type_id": 1,
+    "quantity": 3,
+    "holder_names": ["測試用戶1", "測試用戶2", "測試用戶3"],
+    "description": {"seat": "A區1-3號", "meal": "一般", "notes": "測試票券"}
+  }'
 ```
 
-## 📡 API Usage Guide
+### 功能測試
+```bash
+# 完整功能測試
+python test_complete_system.py
 
-### Authentication Method
-All APIs requiring authentication use Header authentication:
+# 簡化認證測試
+python test_simple_auth.py
+
+# 多租戶完整測試
+python test_multi_tenant.py
+```
+
+### 測試賬號
+- **管理員**: 用戶名 `admin`, 密碼 `admin123`
+- **掃描員**: 登入碼參見測試資料創建輸出
+- **多租戶測試**: 使用 `setup_multi_tenant.py` 創建的示例商戶
+
+## 📡 API 使用說明
+
+### 認證方式
+所有需要認證的 API 都使用 Header 認證:
 ```http
 X-API-Key: test-api-key
 Staff-ID: 1
 ```
 
-### Core Workflow Examples
+### 🎫 完整票券產生流程 (IMPORTANT!)
 
-#### 1. Staff Verification
+**票券產生必須按照以下順序執行：**
+
+#### 步驟 1: 建立商戶（多租戶模式）
 ```bash
-curl -X POST "http://localhost:8000/api/staff/verify" \
+# 創建商戶（需要管理員權限）
+curl -X POST "http://localhost:8000/admin/merchants" \
   -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "admin123"}'
+  -d '{
+    "name": "測試商戶",
+    "description": "這是一個測試商戶",
+    "contact_email": "test@example.com",
+    "contact_phone": "0912345678"
+  }'
 ```
 
-#### 2. Get Ticket QR Code
+#### 步驟 2: 創建活動
 ```bash
-curl -X GET "http://localhost:8000/api/tickets/1/qrcode"
+# 在商戶下創建活動
+curl -X POST "http://localhost:8000/api/events/" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: merchant-api-key" \
+  -d '{
+    "name": "音樂會",
+    "description": "年度音樂會活動",
+    "location": "台北市信義區",
+    "start_time": "2024-12-25T19:00:00",
+    "end_time": "2024-12-25T22:00:00"
+  }'
 ```
 
-#### 3. Ticket Verification
+#### 步驟 3: 創建票種（必須先有票種才能產票！）
 ```bash
+# 在活動下創建票種
+curl -X POST "http://localhost:8000/api/events/1/ticket-types" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: merchant-api-key" \
+  -d '{
+    "name": "VIP票",
+    "description": "VIP席位票券",
+    "price": 1500.00,
+    "total_quantity": 100
+  }'
+```
+
+#### 步驟 4: 批次產生票券
+```bash
+# 批次產生票券（需要指定票種ID）
+curl -X POST "http://localhost:8000/api/tickets-mgmt/batch" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: merchant-api-key" \
+  -d '{
+    "ticket_type_id": 1,
+    "quantity": 50,
+    "holder_names": ["張三", "李四", "王五"],
+    "description": {"seat": "A區1-50號", "special": "包含餐點"}
+  }'
+```
+
+#### 步驟 5: 票券 QR Code 與簽到
+```bash
+# 1. 取得票券 QR Code
+curl -X GET "http://localhost:8000/api/tickets-mgmt/1/qrcode"
+
+# 2. 驗證 QR Token（不簽到）
+curl -X POST "http://localhost:8000/api/tickets-mgmt/verify" \
+  -H "Content-Type: application/json" \
+  -d '{"qr_token": "eyJhbGci..."}'
+
+# 3. 執行簽到
+curl -X POST "http://localhost:8000/api/checkin" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: merchant-api-key" \
+  -H "Staff-ID: 1" \
+  -d '{"qr_token": "eyJhbGci...", "event_id": 1}'
+```
+
+#### 步驟 6: 票券查詢
+```bash
+# 查詢單張票券詳細資料
+curl -X GET "http://localhost:8000/api/tickets/1" \
+  -H "X-API-Key: merchant-api-key"
+
+# 根據持有人資訊查詢票券
+curl -X GET "http://localhost:8000/api/tickets/holder/search?email=user@example.com" \
+  -H "X-API-Key: merchant-api-key"
+
+# 多條件查詢票券（支援 email、phone、external_user_id）
+curl -X GET "http://localhost:8000/api/tickets/holder/search?phone=0912345678&event_id=1" \
+  -H "X-API-Key: merchant-api-key"
+```
+
+#### 步驟 7: 票券驗證
+```bash
+# 驗證票券 QR Token
 curl -X POST "http://localhost:8000/api/tickets/verify" \
   -H "Content-Type: application/json" \
   -d '{"qr_token": "eyJhbGci..."}'
 ```
 
-#### 4. Execute Check-in
+#### 步驟 8: 執行簽到
 ```bash
+# 執行票券簽到
 curl -X POST "http://localhost:8000/api/checkin" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: test-api-key" \
@@ -978,81 +1168,80 @@ curl -X POST "http://localhost:8000/api/checkin" \
   -d '{"qr_token": "eyJhbGci...", "event_id": 1}'
 ```
 
-## 🔧 Configuration
+## 🔧 配置說明
 
-### Environment Variables
+### 環境變數
 ```bash
-# Database connection
+# 資料庫連接
 DATABASE_URL=postgresql://qr_admin:qr_pass@localhost:5432/qr_system
 
-# Authentication settings
+# 認證設定
 API_KEY=test-api-key
 SECRET_KEY=your-secret-key-change-in-production
 
-# Multi-tenant settings
+# 多租戶設定
 ENABLE_MULTI_TENANT=1
 ADMIN_PASSWORD=your-secure-admin-password
 
-# QR Code settings
-QR_TOKEN_EXPIRE_HOURS=168  # 7 days expiration
+# QR Code 設定
+QR_TOKEN_EXPIRE_HOURS=168  # 7天過期
 ```
 
-## 🎯 Key Features
+## 🎯 主要特色
 
-### 1. Platform Agnostic
-- RESTful API design supporting any frontend technology
-- Standard HTTP interface, easy to integrate
+### 1. 平台無關性
+- RESTful API 設計，支援任何前端技術
+- 標準 HTTP 介面，易於整合
 
-### 2. Offline Support
-- Ticket data pre-download
-- Offline check-in record caching
-- Automatic sync when network recovers
+### 2. 離線支援
+- 票券資料預下載
+- 離線簽到記錄緩存
+- 網路恢復後自動同步
 
-### 3. Security Mechanisms
-- JWT Token anti-forgery
-- API Key authentication
-- Hierarchical permission management
-- IP and device information recording
+### 3. 安全機制
+- JWT Token 防偽造
+- API Key 認證
+- 權限分級管理
+- IP 和設備資訊記錄
 
-### 4. Scalability
-- Modular service layer design
-- Clear database architecture
-- Support for horizontal scaling
+### 4. 擴展性
+- 模組化服務層設計
+- 清晰的資料庫架構
+- 支援水平擴展
 
-### 5. Multi-Tenant Security
-- Complete data isolation between merchants
-- Merchant-specific API Keys
-- Tenant-aware queries at all levels
-- Session management with sessionmaker
+### 5. 多租戶安全
+- 完整的商戶間數據隔離
+- 商戶專屬的 API Key
+- 租戶感知的查詢和操作
+- 使用 sessionmaker 管理資料庫會話
 
-## 📈 Performance Metrics
+## 📈 效能指標
 
-### Test Results
-```
-🏁 Testing Complete! Passed: 8, Failed: 0
-🎉 All tests passed!
+### 測試結果 (LATEST)
+- ✅ 員工認證系統: 正常
+- ✅ QR Code 生成與驗證: 正常
+- ✅ 票券簽到功能: 正常
+- ✅ 簽到記錄管理: 正常
+- ✅ 離線同步功能: 正常
+- ✅ 批次票券創建: 正常（含 description 欄位）
+- ✅ 票種管理 API: 正常
+- ✅ 權限控制系統: 正常
+- ✅ 資料導出功能: 正常
+- ✅ 多租戶架構: 正常
+- ✅ Gradio 管理介面: 正常（含票券 description 顯示）
+- ✅ Swagger 文檔: 正常（含完整流程說明）
 
-✅ Merchant creation and management
-✅ API Key generation and validation
-✅ Staff multi-tenant isolation
-✅ Event multi-tenant isolation
-✅ Inter-tenant data isolation
-✅ Merchant statistics functionality
-✅ API Key permission management
-✅ System health checks
-```
+## 🔮 未來擴展
 
-## 🔮 Future Enhancements
+### 可能的功能增強
+1. **前端介面**: React/Vue.js 管理介面
+2. **行動應用**: iOS/Android 掃描 App
+3. **即時通知**: WebSocket 即時更新
+4. **進階報表**: 更詳細的統計分析
+5. **多語言支援**: 國際化功能
+6. **API 版本控制**: v2 API 設計
 
-### Potential Feature Additions
-1. **Frontend Interface**: React/Vue.js admin interface
-2. **Mobile Applications**: iOS/Android scanning apps
-3. **Real-time Notifications**: WebSocket real-time updates
-4. **Advanced Reports**: More detailed statistical analysis
-5. **Multi-language Support**: Internationalization features
-6. **API Versioning**: v2 API design
-
-## 📞 Technical Support
+## 📞 技術支援
 
 - **API Documentation**: http://localhost:8000/docs
 - **Health Check**: http://localhost:8000/health
