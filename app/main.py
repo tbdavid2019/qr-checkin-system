@@ -53,6 +53,30 @@ X-Admin-Password: your-admin-password
   "accessibility": "wheelchair"
 }
 ```
+
+## 票券產生流程
+要使用票券管理功能，請依照以下流程操作：
+
+### 1. 建立商戶 (由管理員執行)
+使用 `/admin/merchants/` API 建立商戶並取得 API Key
+
+### 2. 建立活動
+使用商戶 API Key 呼叫 `/api/events/` 建立活動
+
+### 3. 建立票種 (重要步驟)
+⚠️ **在產票之前，必須先建立票種！**
+使用 `/api/events/{event_id}/ticket-types/` 建立票種
+
+### 4. 產生票券
+使用票種 ID 透過以下 API 產生票券：
+- **批次產票**: `/api/tickets-mgmt/batch`
+- **單筆產票**: `/api/tickets-mgmt/`
+
+### 5. 生成 QR Code
+使用 `/api/tickets/{ticket_id}/qrcode` 取得票券 QR Code
+
+### 6. 簽到驗證
+使用 `/api/checkin/check` 進行票券簽到
     """,
     openapi_tags=[
         {

@@ -8,7 +8,7 @@ from app.database import get_db
 from app.dependencies import get_current_active_staff, require_api_key
 from schemas.event import (
     EventCreate, EventUpdate, Event, EventWithTicketTypes,
-    TicketTypeCreate, TicketTypeUpdate, TicketType, OfflineTicket
+    TicketTypeBase, TicketTypeCreate, TicketTypeUpdate, TicketType, OfflineTicket
 )
 from schemas.common import APIResponse
 from services.event_service import EventService
@@ -88,6 +88,50 @@ def create_event(
     else:
         event = EventService.create_event(db, event_data)
     return event
+
+@router.post("/{event_id}/ticket-types", response_model=TicketType)
+def create_ticket_type(
+    event_id: int,
+    ticket_type_data: TicketTypeBase,  # 使用 Base 而不是 Create
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
+):
+    """
+    為活動創建票種
+    
+    🎫 **此為產票前必要步驟！**
+    
+    **使用流程**:
+    1. **先執行此 API** 為活動建立票種
+    2. 記錄回傳的票種 ID (ticket_type_id)
+    3. 使用票種 ID 透過票券 API 產生票券：
+       - `/api/tickets/` (單筆)
+       - `/api/tickets/batch` (批次)
+       - `/api/tickets-mgmt/` (管理版本)
+       - `/api/tickets-mgmt/batch` (管理版本)
+    
+    **票種範例**:
+    - 一般票、VIP票、早鳥票等
+    - 每種票種可設定不同價格和數量
+    """
+    # 檢查活動是否存在並屬於該商戶
+    event = EventService.get_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # 在多租戶模式下檢查權限
+    if settings.ENABLE_MULTI_TENANT:
+        if event.merchant_id != merchant.id:
+            raise HTTPException(status_code=404, detail="Event not found")
+    
+    # 創建包含 event_id 的完整數據
+    ticket_type_create_data = TicketTypeCreate(
+        event_id=event_id,
+        **ticket_type_data.dict()
+    )
+    
+    ticket_type = EventService.create_ticket_type(db, ticket_type_create_data)
+    return ticket_type
 
 @router.patch("/ticket-types/{ticket_type_id}", response_model=TicketType)
 def update_ticket_type(

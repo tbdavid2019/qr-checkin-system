@@ -4,8 +4,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
-from schemas.ticket import TicketVerifyRequest, TicketVerifyResponse
+from schemas.ticket import TicketVerifyRequest, TicketVerifyResponse, TicketCreate, Ticket, BatchTicketCreate
+from schemas.common import APIResponse
 from services.ticket_service import TicketService
+from app.dependencies import require_api_key
 from utils.auth import create_qr_token, verify_qr_token
 from utils.qr_code import generate_qr_code, generate_ticket_qr_url
 
@@ -82,3 +84,70 @@ def verify_ticket(verify_request: TicketVerifyRequest, db: Session = Depends(get
         is_used=ticket.is_used,
         message="Valid ticket"
     )
+
+@router.post("", response_model=Ticket)
+def create_ticket(
+    ticket_data: TicketCreate,
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
+):
+    """
+    創建單張票券（多租戶安全）
+    
+    ⚠️ **重要提醒**: 產票前請確保已建立票種！
+    
+    **流程說明**:
+    1. 先使用 `/api/events/{event_id}/ticket-types/` 建立票種
+    2. 記錄票種 ID (ticket_type_id)
+    3. 使用此 API 產生單張票券
+    
+    **description 欄位範例**:
+    ```json
+    {
+      "seat": "A-01",
+      "zone": "VIP",
+      "entrance": "Gate A"
+    }
+    ```
+    """
+    try:
+        ticket = TicketService.create_ticket_with_merchant(db, ticket_data, merchant.id if merchant else None)
+        return ticket
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.post("/batch", response_model=list[Ticket])
+def create_batch_tickets(
+    batch_data: BatchTicketCreate,
+    db: Session = Depends(get_db),
+    merchant = Depends(require_api_key)
+):
+    """
+    批次產票（多租戶安全）
+    
+    ⚠️ **重要提醒**: 產票前請確保已建立票種！
+    
+    **流程說明**:
+    1. 先使用 `/api/events/{event_id}/ticket-types/` 建立票種
+    2. 記錄票種 ID (ticket_type_id)  
+    3. 使用此 API 批次產生票券
+    
+    **description 欄位範例**:
+    ```json
+    {
+      "seat": "A-01",
+      "zone": "VIP", 
+      "entrance": "Gate A",
+      "meal": "vegetarian"
+    }
+    ```
+    """
+    try:
+        tickets = TicketService.create_batch_tickets_with_merchant(db, batch_data, merchant.id if merchant else None)
+        return tickets
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

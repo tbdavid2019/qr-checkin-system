@@ -20,11 +20,14 @@
 - **權限控制**: 基於員工-活動關聯的權限管理系統
 - **租戶隔離**: 確保員工只能操作所屬商戶的數據
 
-### 🎫 票券管理
+### 🎫 票券管理 (ENHANCED!)
 - **票券創建**: 單張票券和批次票券創建
+- **票券描述**: 支援 JSON 格式的票券描述欄位，可儲存額外資訊（座位號、特殊需求等）
+- **票種管理**: 活動下的票種創建、更新、刪除功能
 - **QR Code 生成**: JWT Token 為基礎的 QR Code 生成
 - **票券驗證**: QR Token 驗證功能（不執行簽到）
-- **票券查詢**: 根據活動、票券ID等查詢功能
+- **票券查詢**: 根據活動、票券ID等查詢功能，包含描述欄位顯示
+- **完整流程**: 建立商戶 → 創建活動 → 創建票種 → 批次/單筆產票 → QR 簽到
 
 ### 🎯 簽到系統
 - **QR Code 簽到**: 掃描 QR Code 進行票券核銷
@@ -55,13 +58,23 @@
 ### 資料庫設計
 ```
 📊 核心資料表:
-├── events (活動)
-├── ticket_types (票種)
-├── tickets (票券)
-├── staff (員工)
+├── merchants (商戶) - 多租戶支援
+├── api_keys (API金鑰) - 商戶專屬認證
+├── events (活動) - 包含 merchant_id
+├── ticket_types (票種) - 活動下的票種分類
+├── tickets (票券) - 新增 description 欄位 (JSON格式)
+├── staff (員工) - 包含 merchant_id
 ├── staff_events (員工-活動權限)
 └── checkin_logs (簽到記錄)
 ```
+
+#### 🎫 票券 description 欄位
+tickets 表新增 `description` 欄位，支援 JSON 格式存儲：
+- **資料型態**: TEXT (可存儲 JSON 字串)
+- **用途**: 儲存票券額外資訊（座位、餐點、特殊需求等）
+- **格式範例**: `{"seat": "A區1號", "meal": "素食", "notes": "VIP"}`
+- **API 支援**: 所有票券 CRUD 操作都支援 description 欄位
+- **Gradio 顯示**: 管理介面票券列表包含描述欄位顯示
 
 ### API 設計
 ```
@@ -254,6 +267,10 @@ Staff-ID: 1                    # 該商戶下的員工ID
 #### Gradio 管理介面功能 (ENHANCED!)
 - **商戶管理**: 創建、查看、更新商戶資訊
 - **API Key 管理**: 生成、查看、撤銷API Key
+- **活動管理**: 創建活動、編輯活動描述、刪除活動
+- **票券查看**: 查看票券清單，包含票種、持有人、**描述欄位**、狀態、建立時間
+- **員工管理**: 查看商戶下的員工清單
+- **簽到記錄**: 查看各活動的簽到記錄
 - **統計面板**: 查看各商戶的活動、票券、員工統計
 - **系統概覽**: 整體多租戶系統統計
 - **多租戶安全**: 所有查詢均支援 merchant_id 過濾，確保資料隔離
@@ -306,10 +323,25 @@ Staff-ID: 1                    # 該商戶下的員工ID
 ./test_complete_apis.sh
 ```
 
-**5. 多租戶 API 測試** (`test_multi_tenant_apis.py`)
+**6. Swagger 文檔測試** (`test_swagger_apis.sh`)
 ```bash
-# 專門測試多租戶功能的 Python 測試腳本
-python test_multi_tenant_apis.py
+# 測試 Swagger 文檔中的所有 API 端點，包含 description 欄位
+./test_swagger_apis.sh
+```
+
+#### 🎫 票券 description 欄位測試
+所有測試腳本都已支援 description 欄位測試：
+```bash
+# 批次產票測試（包含 description）
+curl -X POST "http://localhost:8000/api/tickets-mgmt/batch" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: test-api-key" \
+  -d '{
+    "ticket_type_id": 1,
+    "quantity": 3,
+    "holder_names": ["測試用戶1", "測試用戶2", "測試用戶3"],
+    "description": {"seat": "A區1-3號", "meal": "一般", "notes": "測試票券"}
+  }'
 ```
 
 ### 功能測試
@@ -337,6 +369,115 @@ python test_multi_tenant.py
 X-API-Key: test-api-key
 Staff-ID: 1
 ```
+
+### 🎫 完整票券產生流程 (IMPORTANT!)
+
+**票券產生必須按照以下順序執行：**
+
+#### 步驟 1: 建立商戶（多租戶模式）
+```bash
+# 創建商戶（需要管理員權限）
+curl -X POST "http://localhost:8000/admin/merchants" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "測試商戶",
+    "description": "這是一個測試商戶",
+    "contact_email": "test@example.com",
+    "contact_phone": "0912345678"
+  }'
+```
+
+#### 步驟 2: 創建活動
+```bash
+# 在商戶下創建活動
+curl -X POST "http://localhost:8000/api/events/" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: merchant-api-key" \
+  -d '{
+    "name": "音樂會",
+    "description": "年度音樂會活動",
+    "location": "台北市信義區",
+    "start_time": "2024-12-25T19:00:00",
+    "end_time": "2024-12-25T22:00:00"
+  }'
+```
+
+#### 步驟 3: 創建票種（必須先有票種才能產票！）
+```bash
+# 在活動下創建票種
+curl -X POST "http://localhost:8000/api/events/1/ticket-types" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: merchant-api-key" \
+  -d '{
+    "name": "VIP票",
+    "description": "VIP席位票券",
+    "price": 1500.00,
+    "total_quantity": 100
+  }'
+```
+
+#### 步驟 4: 批次產生票券
+```bash
+# 批次產生票券（需要指定票種ID）
+curl -X POST "http://localhost:8000/api/tickets-mgmt/batch" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: merchant-api-key" \
+  -d '{
+    "ticket_type_id": 1,
+    "quantity": 50,
+    "holder_names": ["張三", "李四", "王五"],
+    "description": {"seat": "A區1-50號", "special": "包含餐點"}
+  }'
+```
+
+#### 步驟 5: 票券 QR Code 與簽到
+```bash
+# 1. 取得票券 QR Code
+curl -X GET "http://localhost:8000/api/tickets-mgmt/1/qrcode"
+
+# 2. 驗證 QR Token（不簽到）
+curl -X POST "http://localhost:8000/api/tickets-mgmt/verify" \
+  -H "Content-Type: application/json" \
+  -d '{"qr_token": "eyJhbGci..."}'
+
+# 3. 執行簽到
+curl -X POST "http://localhost:8000/api/checkin" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: merchant-api-key" \
+  -H "Staff-ID: 1" \
+  -d '{"qr_token": "eyJhbGci...", "event_id": 1}'
+```
+
+### 📝 Swagger 文檔說明
+
+我們的 API 文檔包含完整的欄位說明和流程指引：
+
+#### 🔗 訪問 Swagger 文檔
+- **完整 API 文檔**: http://localhost:8000/docs
+- **ReDoc 格式**: http://localhost:8000/redoc
+
+#### 📋 主要功能區塊
+1. **認證管理**: 員工登入、API Key 驗證
+2. **商戶管理**: 多租戶商戶 CRUD 操作
+3. **活動管理**: 活動與票種管理
+4. **票券管理**: 票券產生、查詢、驗證
+5. **簽到系統**: QR Code 簽到與記錄
+
+#### 🎫 票券描述欄位 (description)
+票券支援 JSON 格式的描述欄位，可儲存：
+```json
+{
+  "seat": "A區第5排10號",
+  "meal": "素食",
+  "special_needs": "輪椅席",
+  "notes": "VIP專屬通道"
+}
+```
+
+#### ⚠️ 重要流程提醒
+- **Swagger 文檔明確標註**：產生票券前必須先建立對應的票種
+- **所有 API 都有完整的參數說明**和範例
+- **錯誤回應格式統一**，便於除錯
 
 ### 核心流程示例
 
@@ -407,15 +548,19 @@ QR_TOKEN_EXPIRE_HOURS=168  # 7天過期
 
 ## 📈 效能指標
 
-### 測試結果
+### 測試結果 (LATEST)
 - ✅ 員工認證系統: 正常
 - ✅ QR Code 生成與驗證: 正常
 - ✅ 票券簽到功能: 正常
 - ✅ 簽到記錄管理: 正常
 - ✅ 離線同步功能: 正常
-- ✅ 批次票券創建: 正常
+- ✅ 批次票券創建: 正常（含 description 欄位）
+- ✅ 票種管理 API: 正常
 - ✅ 權限控制系統: 正常
 - ✅ 資料導出功能: 正常
+- ✅ 多租戶架構: 正常
+- ✅ Gradio 管理介面: 正常（含票券 description 顯示）
+- ✅ Swagger 文檔: 正常（含完整流程說明）
 
 ## 🔮 未來擴展
 
@@ -429,10 +574,29 @@ QR_TOKEN_EXPIRE_HOURS=168  # 7天過期
 
 ## 📞 技術支援
 
-- **API 文檔**: http://localhost:8000/docs
+### 📖 完整文檔
+- **API 文檔**: http://localhost:8000/docs（含完整流程說明）
+- **ReDoc 格式**: http://localhost:8000/redoc
 - **API 路由總覽**: [API_ROUTES_OVERVIEW.md](API_ROUTES_OVERVIEW.md)
+- **API 測試說明**: [API_TESTING_README.md](API_TESTING_README.md)
+- **多租戶實現報告**: [MULTI_TENANT_REPORT.md](MULTI_TENANT_REPORT.md)
+
+### 🔧 健康檢查
 - **健康檢查**: http://localhost:8000/health
-- **測試腳本**: `test_simple_auth.py`
+- **容器健康檢查**: `./health-check.sh`
+- **API 快速測試**: `./test_api_quick.sh`
+
+### 🎫 重要流程提醒
+1. **產票流程**: 商戶 → 活動 → 票種 → 票券
+2. **Description 欄位**: 支援 JSON 格式的票券描述
+3. **多租戶隔離**: 確保 merchant_id 正確傳遞
+4. **API Key 使用**: 每個商戶使用專屬的 API Key
+
+### 🧪 測試腳本
+- **測試套件主選單**: `./test_suite.sh`
+- **簡化認證測試**: `python test_simple_auth.py`
+- **完整系統測試**: `python test_complete_system.py`
+- **多租戶測試**: `python test_multi_tenant.py`
 
 ---
 
@@ -559,11 +723,14 @@ A comprehensive QR Code check-in system built with FastAPI, supporting ticket ma
 - **Permission Control**: Permission management based on staff-event associations
 - **Tenant Isolation**: Ensures staff can only operate on their merchant's data
 
-### 🎫 Ticket Management
+### 🎫 Ticket Management (ENHANCED!)
 - **Ticket Creation**: Single ticket and batch ticket creation
+- **Ticket Description**: Support for JSON format ticket description field for storing additional information (seat numbers, special requirements, etc.)
+- **Ticket Type Management**: Create, update, delete ticket types under events
 - **QR Code Generation**: JWT Token-based QR Code generation
 - **Ticket Verification**: QR Token validation (without check-in execution)
-- **Ticket Queries**: Query functionality based on events, ticket IDs, etc.
+- **Ticket Queries**: Query functionality based on events, ticket IDs, etc., including description field display
+- **Complete Workflow**: Create Merchant → Create Event → Create Ticket Type → Generate Tickets (Batch/Single) → QR Check-in
 
 ### 🎯 Check-in System
 - **QR Code Check-in**: Scan QR Code for ticket validation
@@ -598,6 +765,19 @@ A comprehensive QR Code check-in system built with FastAPI, supporting ticket ma
 ├── api_keys (API Keys)
 ├── events (Events) - with merchant_id
 ├── ticket_types (Ticket Types)
+├── tickets (Tickets) - NEW: description field (JSON format)
+├── staff (Staff) - with merchant_id
+├── staff_events (Staff-Event Permissions)
+└── checkin_logs (Check-in Records)
+```
+
+#### 🎫 Ticket Description Field
+The tickets table includes a new `description` field supporting JSON format:
+- **Data Type**: TEXT (stores JSON strings)
+- **Purpose**: Store additional ticket information (seats, meals, special requirements, etc.)
+- **Example Format**: `{"seat": "A1", "meal": "vegetarian", "notes": "VIP"}`
+- **API Support**: All ticket CRUD operations support the description field
+- **Gradio Display**: Admin interface ticket list includes description field display
 ├── tickets (Tickets)
 ├── staff (Staff) - with merchant_id
 ├── staff_events (Staff-Event Permissions)

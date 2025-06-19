@@ -335,6 +335,7 @@ class GradioAdmin:
                     "ID": ticket.id,
                     "票種": ticket.ticket_type.name if ticket.ticket_type else "未知",
                     "持有人": ticket.holder_name,
+                    "描述": ticket.description or "",
                     "狀態": "已使用" if ticket.is_used else "未使用",
                     "建立時間": ticket.created_at.strftime("%Y-%m-%d %H:%M") if ticket.created_at else ""
                 })
@@ -496,7 +497,7 @@ class GradioAdmin:
                 with gr.Row():
                     ticket_merchant_id = gr.Number(label="商戶ID (選填)", info="留空則查詢所有商戶")
                     ticket_event_id = gr.Number(label="活動ID")
-                ticket_table = gr.Dataframe(headers=["ID", "票種", "持有人", "狀態", "建立時間"])
+                ticket_table = gr.Dataframe(headers=["ID", "票種", "持有人", "描述", "狀態", "建立時間"])
                 ticket_refresh_btn = gr.Button("刷新門票列表")
                 ticket_refresh_btn.click(self.get_tickets_data, inputs=[ticket_event_id, ticket_merchant_id], outputs=[ticket_table])
 
