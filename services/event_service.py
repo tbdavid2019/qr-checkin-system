@@ -12,13 +12,16 @@ class EventService:
     def create_event(db: Session, event_data: EventCreate, merchant_id: Optional[int] = None) -> Event:
         """建立活動（支援多租戶）"""
         event_dict = event_data.dict()
+        print(f"🔧 [DEBUG] 活動創建資料: {event_dict}")  # 調試輸出
         if merchant_id:
             event_dict['merchant_id'] = merchant_id
         
         event = Event(**event_dict)
+        print(f"🔧 [DEBUG] 建立的活動物件: total_quota={event.total_quota}")  # 調試輸出
         db.add(event)
         db.commit()
         db.refresh(event)
+        print(f"🔧 [DEBUG] 儲存後的活動物件: total_quota={event.total_quota}")  # 調試輸出
         return event
     
     @staticmethod

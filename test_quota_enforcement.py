@@ -5,15 +5,51 @@
 import requests
 import json
 import sys
+import time
 from datetime import datetime, timedelta
 
 # API 配置
 BASE_URL = "http://localhost:8000"
-API_KEY = "qr_nHKyfE2YUa8SK5cxujEa1ERzpyqjsV3u"  # 從數據庫中獲取的有效 API Key
-HEADERS = {
-    "Content-Type": "application/json",
-    "X-API-Key": API_KEY
-}
+ADMIN_PASSWORD = "secure-admin-password-123"
+
+# 全域變數
+API_KEY = None
+HEADERS = {}
+
+def setup_api_key():
+    """動態創建商戶並獲取 API Key"""
+    global API_KEY, HEADERS
+    
+    print("🔧 設定測試環境 - 創建商戶並獲取 API Key")
+    
+    merchant_data = {
+        "name": f"配額測試商戶_{int(time.time())}",
+        "email": f"quota_test_{int(time.time())}@example.com",
+        "description": "票券配額強制執行測試商戶"
+    }
+    
+    headers = {
+        "X-Admin-Password": ADMIN_PASSWORD,
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.post(f"{BASE_URL}/admin/merchants", headers=headers, json=merchant_data)
+        if response.status_code in [200, 201]:
+            data = response.json()
+            API_KEY = data['api_key']
+            HEADERS = {
+                "Content-Type": "application/json",
+                "X-API-Key": API_KEY
+            }
+            print_result(True, f"商戶創建成功，API Key: {API_KEY}")
+            return True
+        else:
+            print_result(False, f"商戶創建失敗: {response.text}")
+            return False
+    except Exception as e:
+        print_result(False, f"商戶創建異常: {e}")
+        return False
 
 def print_step(step_num, description):
     print(f"\n=== 步驟 {step_num}: {description} ===")
@@ -40,6 +76,11 @@ def create_event_with_quota(name, total_quota):
     if response.status_code in [200, 201]:
         event = response.json()
         print_result(True, f"活動已創建，ID: {event['id']}, 總配額: {total_quota}")
+        # 驗證配額是否正確設置
+        if 'total_quota' in event:
+            print(f"   驗證: 活動配額在回應中為 {event.get('total_quota')}")
+        else:
+            print("   警告: 活動回應中沒有 total_quota 欄位")
         return event
     else:
         print_result(False, f"活動創建失敗: {response.text}")
@@ -113,6 +154,11 @@ def get_event_tickets_count(event_id):
 
 def main():
     print("🎫 開始測試票券配額強制執行功能")
+    
+    # 步驟0：設定 API Key
+    if not setup_api_key():
+        print("❌ 無法設定測試環境，測試終止")
+        sys.exit(1)
     
     # 步驟1：創建有配額限制的活動
     print_step(1, "創建總配額為 3 張票券的活動")
