@@ -25,13 +25,25 @@ class MerchantService:
         return f"qr_{api_key}"
     
     @staticmethod
-    def create_merchant(db: Session, merchant_data: MerchantCreate) -> Merchant:
-        """創建新商戶"""
+    def create_merchant(db: Session, merchant_data: MerchantCreate) -> dict:
+        """創建新商戶並返回包含 API Key 的資訊"""
         merchant = Merchant(**merchant_data.dict())
         db.add(merchant)
         db.commit()
         db.refresh(merchant)
-        return merchant
+
+        # 創建一個預設的 API Key
+        api_key_record = MerchantService.create_api_key(
+            db=db,
+            merchant_id=merchant.id,
+            key_name="Default Key"
+        )
+
+        # 將 merchant 物件轉為字典，並加入 api_key
+        response_data = {c.name: getattr(merchant, c.name) for c in merchant.__table__.columns}
+        response_data['api_key'] = api_key_record.api_key
+        
+        return response_data
     
     @staticmethod
     def get_merchant_by_id(db: Session, merchant_id: int) -> Optional[Merchant]:

@@ -1,19 +1,28 @@
 #!/bin/bash
 
-# QR Check-in System API 快速測試腳本
-# 簡化版本，專注於核心功能測試
+# QR Check-in System API 快速測試腳本 (重構後)
+# 專注於檢查主要端點是否可達
 
 set -e
 
-# 配置
+# --- 配置 ---
 API_BASE_URL="http://localhost:8000"
 CONTENT_TYPE="Content-Type: application/json"
 
-# 顏色輸出
+# 從環境變數或 .env 檔案讀取，若無則使用預設值
+ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+MERCHANT_API_KEY=${MERCHANT_API_KEY:-qr_uaIPi98rFvDQqUpPeBqePwZGwVr3jJ5a} # 預設商戶 API Key
+
+# --- 顏色輸出 ---
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+RED='\033[0;31m'
 NC='\033[0m'
+
+print_header() {
+    echo -e "\n${BLUE}--- $1 ---${NC}"
+}
 
 print_test() {
     echo -e "${YELLOW}🧪 測試: $1${NC}"
@@ -23,61 +32,72 @@ print_success() {
     echo -e "${GREEN}✅ $1${NC}"
 }
 
+print_failure() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+# --- 測試函式 ---
 test_endpoint() {
-    local method=$1
-    local endpoint=$2
-    local data=$3
-    local name=$4
-    
-    print_test "$name"
-    
-    if [ -z "$data" ]; then
-        status=$(curl -s -o /dev/null -w "%{http_code}" -X $method "$API_BASE_URL$endpoint" -H "$CONTENT_TYPE")
-    else
-        status=$(curl -s -o /dev/null -w "%{http_code}" -X $method "$API_BASE_URL$endpoint" -H "$CONTENT_TYPE" -d "$data")
+    local name=$1
+    local method=$2
+    local endpoint=$3
+    local headers=$4
+    local expected_status_pattern=$5
+
+    print_test "$name ($method $endpoint)"
+
+    # 組裝 curl 指令
+    cmd="curl -s -o /dev/null -w \"%{http_code}\" -X $method \"$API_BASE_URL$endpoint\""
+    if [ -n "$headers" ]; then
+        # 支援多個 -H 參數
+        while IFS= read -r header; do
+            cmd="$cmd -H \"$header\""
+        done <<< "$headers"
     fi
-    
-    if [[ $status =~ ^[23] ]]; then
-        print_success "$name (Status: $status)"
+
+    # 執行 curl 並取得 HTTP 狀態碼
+    status=$(eval $cmd)
+
+    # 檢查狀態碼是否符合預期
+    if [[ "$status" =~ $expected_status_pattern ]]; then
+        print_success "成功 (Status: $status, Expected: $expected_status_pattern)"
     else
-        echo "❌ $name 失敗 (Status: $status)"
+        print_failure "失敗 (Status: $status, Expected: $expected_status_pattern)"
+        # exit 1 # 快速測試中，即使失敗也繼續
     fi
 }
 
-echo -e "${BLUE}=== QR Check-in System API 快速測試 ===${NC}"
+# ==================================================
+#                開始執行測試
+# ==================================================
 
-# 基本 API 測試
-echo -e "\n${BLUE}1. 基本 API${NC}"
-test_endpoint "GET" "/" "" "根路由"
-test_endpoint "GET" "/docs" "" "Swagger 文檔"
+echo -e "${BLUE}=== QR Check-in System API 快速可達性測試 ===${NC}"
 
-# 健康檢查
-echo -e "\n${BLUE}2. 健康檢查${NC}"
-test_endpoint "GET" "/health" "" "健康檢查"
+# 1. 公開端點與健康檢查 (不需認證)
+print_header "1. 公開端點與健康檢查"
+test_endpoint "根路由" "GET" "/" "" "^200$"
+test_endpoint "健康檢查" "GET" "/health" "" "^200$"
+test_endpoint "Swagger 文檔" "GET" "/docs" "" "^200$"
+test_endpoint "公開票券查詢 (預期 404)" "GET" "/api/v1/public/tickets/some-fake-uuid" "" "^404$"
 
-# 商戶 API 測試
-echo -e "\n${BLUE}3. 商戶管理 API${NC}"
-test_endpoint "GET" "/admin/merchants" "" "獲取商戶列表"
-test_endpoint "POST" "/admin/merchants" '{"name":"測試商戶","contact_email":"test@example.com","contact_phone":"0900000000","is_active":true}' "創建商戶"
+# 2. 管理員 API (需要 Admin Password)
+print_header "2. 管理員 API"
+test_endpoint "獲取商戶列表 (帶正確密碼)" "GET" "/admin/merchants" "X-Admin-Password: $ADMIN_PASSWORD" "^200$"
+test_endpoint "獲取商戶列表 (不帶密碼)" "GET" "/admin/merchants" "" "^401$"
 
-# 活動 API 測試
-echo -e "\n${BLUE}4. 活動管理 API${NC}"
-test_endpoint "GET" "/api/events" "" "獲取活動列表"
+# 3. 租戶管理 API (需要 API Key)
+print_header "3. 租戶管理 API"
+MERCHANT_HEADERS="X-API-Key: $MERCHANT_API_KEY"
+test_endpoint "獲取活動列表 (帶 API Key)" "GET" "/api/v1/mgmt/events" "$MERCHANT_HEADERS" "^200$"
+test_endpoint "獲取票券列表 (帶 API Key)" "GET" "/api/v1/mgmt/tickets" "$MERCHANT_HEADERS" "^200$"
+test_endpoint "獲取員工列表 (帶 API Key)" "GET" "/api/v1/mgmt/staff" "$MERCHANT_HEADERS" "^200$"
+test_endpoint "獲取活動列表 (不帶 API Key)" "GET" "/api/v1/mgmt/events" "" "^403$" # 應為 Forbidden
 
-# 票券 API 測試
-echo -e "\n${BLUE}5. 票券管理 API${NC}"
-test_endpoint "GET" "/admin/api/tickets" "" "獲取票券列表 (管理版)"
-test_endpoint "POST" "/admin/api/tickets/verify" '{"ticket_id":"test123"}' "驗證票券"
-
-# 員工 API 測試
-echo -e "\n${BLUE}6. 員工管理 API${NC}"
-test_endpoint "GET" "/api/staff/list" "" "獲取員工列表"
-test_endpoint "POST" "/api/staff/create" '{"name":"測試員工","email":"staff@example.com","phone":"0900000000"}' "創建員工"
-
-# 簽到 API 測試
-echo -e "\n${BLUE}7. 簽到管理 API${NC}"
-test_endpoint "GET" "/admin/api/checkin" "" "獲取簽到記錄"
-test_endpoint "POST" "/api/checkin" '{"ticket_id":"test123","staff_id":1,"notes":"測試簽到"}' "執行簽到"
+# 4. 員工 API (需要 JWT)
+print_header "4. 員工 API"
+test_endpoint "員工登入頁 (不帶資料)" "POST" "/api/v1/staff/login" "" "^422$" # Unprocessable Entity
+test_endpoint "查詢個人資料 (不帶 JWT)" "GET" "/api/v1/staff/me/profile" "" "^401$" # Unauthorized
+test_endpoint "查詢個人活動 (不帶 JWT)" "GET" "/api/v1/staff/me/events" "" "^401$" # Unauthorized
+test_endpoint "執行簽到 (不帶 JWT)" "POST" "/api/v1/staff/checkin" "" "^401$" # Unauthorized
 
 echo -e "\n${GREEN}🎉 快速測試完成！${NC}"
-echo -e "如需詳細測試，請運行: ${YELLOW}./test_swagger_apis.sh${NC}"

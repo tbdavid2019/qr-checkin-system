@@ -41,7 +41,7 @@ class StaffService:
     
     @staticmethod
     def get_staff_by_id(db: Session, staff_id: int) -> Optional[Staff]:
-        """根據 ID 獲取員工"""
+        """根據 ID 獲取員工（通用，無商戶限制）"""
         return db.query(Staff).filter(Staff.id == staff_id).first()
     
     @staticmethod
@@ -97,6 +97,44 @@ class StaffService:
         return staff_event and staff_event.can_revoke
     
     @staticmethod
+    def assign_event_to_staff(db: Session, assignment: 'StaffEventAssign') -> StaffEvent:
+        """指派活動權限給員工"""
+        # 檢查員工與活動是否存在
+        staff = db.query(Staff).filter(Staff.id == assignment.staff_id).first()
+        if not staff:
+            raise ValueError(f"員工 ID {assignment.staff_id} 不存在")
+        
+        event = db.query(Event).filter(Event.id == assignment.event_id).first()
+        if not event:
+            raise ValueError(f"活動 ID {assignment.event_id} 不存在")
+
+        # 檢查是否已存在相同的權限設定
+        existing_permission = db.query(StaffEvent).filter_by(
+            staff_id=assignment.staff_id,
+            event_id=assignment.event_id
+        ).first()
+
+        if existing_permission:
+            # 更新現有權限
+            existing_permission.can_checkin = assignment.can_checkin
+            existing_permission.can_revoke = assignment.can_revoke
+            db.commit()
+            db.refresh(existing_permission)
+            return existing_permission
+        else:
+            # 建立新的權限
+            new_permission = StaffEvent(
+                staff_id=assignment.staff_id,
+                event_id=assignment.event_id,
+                can_checkin=assignment.can_checkin,
+                can_revoke=assignment.can_revoke
+            )
+            db.add(new_permission)
+            db.commit()
+            db.refresh(new_permission)
+            return new_permission
+
+    @staticmethod
     def create_staff(db: Session, staff_data, merchant_id: Optional[int] = None) -> Staff:
         """創建新員工"""
         # 檢查用戶名是否已存在
@@ -119,7 +157,7 @@ class StaffService:
         staff = Staff(
             username=staff_data.username,
             hashed_password=hashed_password,
-            full_name=staff_data.name,
+            full_name=staff_data.full_name,
             email=staff_data.email,
             is_admin=is_admin,
             merchant_id=merchant_id,
@@ -142,11 +180,11 @@ class StaffService:
         return db.query(Staff).filter(Staff.merchant_id == merchant_id).all()
     
     @staticmethod
-    def update_staff(db: Session, staff_id: int, staff_data) -> Staff:
-        """更新員工資訊"""
+    def update_staff(db: Session, staff_id: int, staff_data, merchant_id: int) -> Staff:
+        """更新員工資訊（會驗證商戶所有權）"""
         staff = db.query(Staff).filter(Staff.id == staff_id).first()
-        if not staff:
-            raise ValueError(f"員工 ID {staff_id} 不存在")
+        if not staff or staff.merchant_id != merchant_id:
+            raise ValueError(f"員工 ID {staff_id} 在此商戶下不存在")
         
         # 檢查用戶名是否被其他員工使用
         if hasattr(staff_data, 'username') and staff_data.username != staff.username:
@@ -160,8 +198,8 @@ class StaffService:
         # 更新員工資訊
         if hasattr(staff_data, 'username'):
             staff.username = staff_data.username
-        if hasattr(staff_data, 'name'):
-            staff.full_name = staff_data.name
+        if hasattr(staff_data, 'full_name'):
+            staff.full_name = staff_data.full_name
         if hasattr(staff_data, 'email'):
             staff.email = staff_data.email
         if hasattr(staff_data, 'password') and staff_data.password:
@@ -174,10 +212,10 @@ class StaffService:
         return staff
     
     @staticmethod
-    def delete_staff(db: Session, staff_id: int) -> bool:
-        """刪除員工"""
+    def delete_staff(db: Session, staff_id: int, merchant_id: int) -> bool:
+        """刪除員工（會驗證商戶所有權）"""
         staff = db.query(Staff).filter(Staff.id == staff_id).first()
-        if not staff:
+        if not staff or staff.merchant_id != merchant_id:
             return False
         
         try:

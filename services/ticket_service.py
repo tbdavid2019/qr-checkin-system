@@ -3,10 +3,12 @@
 """
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, cast
+from sqlalchemy.dialects.postgresql import UUID
 from models import Ticket, Event, TicketType
 from schemas.ticket import TicketCreate, TicketUpdate, BatchTicketCreate
 from utils.security import generate_ticket_code
+import uuid
 
 class TicketService:
     
@@ -67,6 +69,15 @@ class TicketService:
         return query.first()
 
     @staticmethod
+    def get_ticket_by_uuid(db: Session, ticket_uuid: str) -> Optional[Ticket]:
+        """根據 UUID 獲取票券"""
+        try:
+            uuid_obj = uuid.UUID(ticket_uuid)
+        except ValueError:
+            return None
+        return db.query(Ticket).filter(Ticket.uuid == uuid_obj).first()
+
+    @staticmethod
     def get_ticket_by_code(db: Session, ticket_code: str) -> Optional[Ticket]:
         """根據票券代碼獲取票券"""
         return db.query(Ticket).filter(Ticket.ticket_code == ticket_code).first()
@@ -124,14 +135,25 @@ class TicketService:
     def create_batch_tickets_with_merchant(db: Session, batch_data: BatchTicketCreate, merchant_id: int = None) -> List[Ticket]:
         """批次建立票券（多租戶安全，驗證 event/ticket_type 屬於 merchant）"""
         # 驗證 event 與 ticket_type 是否屬於 merchant
-        event = db.query(Event).filter(Event.id == batch_data.event_id)
+        event_query = db.query(Event).filter(Event.id == batch_data.event_id)
         ticket_type_query = db.query(TicketType).filter(TicketType.id == batch_data.ticket_type_id)
         if merchant_id:
-            event = event.filter(Event.merchant_id == merchant_id)
+            event_query = event_query.filter(Event.merchant_id == merchant_id)
             # 透過 event 關聯確認票種屬於該商戶
             ticket_type_query = ticket_type_query.join(Event).filter(Event.merchant_id == merchant_id)
-        if not event.first() or not ticket_type_query.first():
-            raise Exception("Event 或 TicketType 不屬於此商戶")
+        
+        event = event_query.first()
+        ticket_type = ticket_type_query.first()
+
+        if not event or not ticket_type:
+            raise ValueError("Event 或 TicketType 不屬於此商戶或不存在")
+
+        # 檢查票券配額
+        if ticket_type.quota is not None and ticket_type.quota > 0:
+            current_ticket_count = db.query(Ticket).filter(Ticket.ticket_type_id == batch_data.ticket_type_id).count()
+            if current_ticket_count + batch_data.count > ticket_type.quota:
+                remaining_quota = ticket_type.quota - current_ticket_count
+                raise ValueError(f"超出票種配額。請求建立 {batch_data.count} 張，但剩餘配額僅為 {remaining_quota} 張。")
         
         tickets = []
         for i in range(batch_data.count):
@@ -194,14 +216,20 @@ class TicketService:
             if not event:
                 raise ValueError("Event not found or no permission")
         
-        # 驗證票種屬於該活動
+        # 驗證票種屬於該活動並檢查配額
         if ticket_data.ticket_type_id:
             ticket_type = db.query(TicketType).filter(
                 and_(TicketType.id == ticket_data.ticket_type_id, TicketType.event_id == ticket_data.event_id)
             ).first()
             if not ticket_type:
-                raise ValueError("Ticket type not found or doesn't belong to this event")
-        
+                raise ValueError("Ticket type not found or does not belong to the event")
+
+            # 檢查票券配額
+            if ticket_type.quota is not None and ticket_type.quota > 0:
+                current_ticket_count = db.query(Ticket).filter(Ticket.ticket_type_id == ticket_data.ticket_type_id).count()
+                if current_ticket_count >= ticket_type.quota:
+                    raise ValueError(f"超出票種配額。配額 ({ticket_type.quota}) 已滿。")
+
         # 生成唯一票券代碼
         while True:
             ticket_code = generate_ticket_code()

@@ -34,16 +34,28 @@ class StaffEventPermission(BaseModel):
     can_checkin: bool
     can_revoke: bool
 
+class StaffEventAssign(BaseModel):
+    staff_id: int
+    event_id: int
+    can_checkin: bool = True
+    can_revoke: bool = False
+
+class StaffEventPermissionResponse(StaffEventPermission):
+    staff_id: int
+    
+    class Config:
+        from_attributes = True
+
 class StaffCreate(BaseModel):
     username: str
     password: str
-    name: str
+    full_name: str
     email: Optional[str] = None
     role: str = "staff"  # staff 或 admin
 
 class StaffUpdate(BaseModel):
     username: Optional[str] = None
-    name: Optional[str] = None
+    full_name: Optional[str] = None
     email: Optional[str] = None
     role: Optional[str] = None
     is_active: Optional[bool] = None

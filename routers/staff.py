@@ -1,5 +1,5 @@
 """
-員工相關 API 路由
+員工身份驗證與個人資料 API
 """
 from datetime import timedelta
 from typing import List
@@ -8,16 +8,17 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_active_staff
 from schemas.staff import StaffLogin, StaffLoginResponse, StaffProfile, StaffEventPermission
-from schemas.common import APIResponse
 from services.staff_service import StaffService
 from utils.auth import create_access_token
 from app.config import settings
 
-router = APIRouter(prefix="/api/staff", tags=["Staff"])
+router = APIRouter(prefix="/api/v1/staff", tags=["Staff: Auth & Profile"])
 
-@router.post("/login", response_model=StaffLoginResponse)
+@router.post("/login", response_model=StaffLoginResponse, summary="Staff Login")
 def staff_login(login_data: StaffLogin, db: Session = Depends(get_db)):
-    """員工登入（帳密或登入碼）"""
+    """
+    Staff login with username/password or a temporary login code.
+    """
     staff = StaffService.authenticate_staff(db, login_data)
     if not staff:
         raise HTTPException(
@@ -25,10 +26,9 @@ def staff_login(login_data: StaffLogin, db: Session = Depends(get_db)):
             detail="Incorrect username/password or login code"
         )
     
-    # 建立 access token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": staff.id}, expires_delta=access_token_expires
+        data={"sub": str(staff.id), "type": "staff"}, expires_delta=access_token_expires
     )
     
     return StaffLoginResponse(
@@ -37,17 +37,21 @@ def staff_login(login_data: StaffLogin, db: Session = Depends(get_db)):
         full_name=staff.full_name
     )
 
-@router.get("/profile", response_model=StaffProfile)
-def get_staff_profile(current_staff = Depends(get_current_active_staff)):
-    """查詢目前登入員工資訊"""
+@router.get("/me/profile", response_model=StaffProfile, summary="Get Own Profile")
+def get_staff_profile(current_staff: StaffProfile = Depends(get_current_active_staff)):
+    """
+    Get the profile of the currently logged-in staff member.
+    """
     return current_staff
 
-@router.get("/events", response_model=List[StaffEventPermission])
+@router.get("/me/events", response_model=List[StaffEventPermission], summary="Get Own Event Permissions")
 def get_staff_events(
-    current_staff = Depends(get_current_active_staff),
+    current_staff: StaffProfile = Depends(get_current_active_staff),
     db: Session = Depends(get_db)
 ):
-    """查詢該員工有權限的活動列表"""
+    """
+    Get the list of events the currently logged-in staff member has permissions for.
+    """
     events = StaffService.get_staff_events(db, current_staff.id)
     return [
         StaffEventPermission(

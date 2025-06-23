@@ -36,6 +36,11 @@ class CheckInService:
         return checkin_log
     
     @staticmethod
+    def get_checkin_log_by_id(db: Session, checkin_log_id: int) -> Optional[CheckInLog]:
+        """Get a check-in log by its ID."""
+        return db.query(CheckInLog).filter(CheckInLog.id == checkin_log_id).first()
+
+    @staticmethod
     def revoke_checkin(
         db: Session, 
         checkin_log_id: int, 

@@ -30,6 +30,10 @@ class Merchant(MerchantBase):
     class Config:
         from_attributes = True
 
+class MerchantCreateResponse(Merchant):
+    """創建商戶時的回應，包含預設的 API Key"""
+    api_key: str
+
 class ApiKeyBase(BaseModel):
     key_name: str
     permissions: Optional[Dict[str, Any]] = None

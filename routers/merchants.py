@@ -5,20 +5,20 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.dependencies import require_super_admin
+from app.dependencies import require_admin_password
 from schemas.merchant import (
     Merchant, MerchantCreate, MerchantUpdate, 
-    ApiKeyResponse, ApiKeyCreate
+    ApiKeyResponse, ApiKeyCreate, MerchantCreateResponse
 )
 from services.merchant_service import MerchantService
 
-router = APIRouter(prefix="/merchants", tags=["merchants"])
+router = APIRouter(prefix="/admin/merchants", tags=["Admin: Merchants"])
 
-@router.post("", response_model=Merchant)
+@router.post("", response_model=MerchantCreateResponse)
 async def create_merchant(
     merchant_data: MerchantCreate,
     db: Session = Depends(get_db),
-    _: bool = Depends(require_super_admin)
+    _: bool = Depends(require_admin_password)
 ):
     """創建新商戶"""
     return MerchantService.create_merchant(db, merchant_data)
@@ -28,7 +28,7 @@ async def get_merchants(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    _: bool = Depends(require_super_admin)
+    _: bool = Depends(require_admin_password)
 ):
     """獲取商戶列表"""
     return MerchantService.get_merchants(db, skip=skip, limit=limit)
@@ -37,7 +37,7 @@ async def get_merchants(
 async def get_merchant(
     merchant_id: int,
     db: Session = Depends(get_db),
-    _: bool = Depends(require_super_admin)
+    _: bool = Depends(require_admin_password)
 ):
     """獲取商戶詳情"""
     merchant = MerchantService.get_merchant_by_id(db, merchant_id)
@@ -53,7 +53,7 @@ async def update_merchant(
     merchant_id: int,
     merchant_data: MerchantUpdate,
     db: Session = Depends(get_db),
-    _: bool = Depends(require_super_admin)
+    _: bool = Depends(require_admin_password)
 ):
     """更新商戶資訊"""
     merchant = MerchantService.update_merchant(db, merchant_id, merchant_data)
@@ -69,7 +69,7 @@ async def create_api_key(
     merchant_id: int,
     api_key_data: ApiKeyCreate,
     db: Session = Depends(get_db),
-    _: bool = Depends(require_super_admin)
+    _: bool = Depends(require_admin_password)
 ):
     """為商戶創建API Key"""
     # 檢查商戶是否存在
@@ -94,7 +94,7 @@ async def create_api_key(
 async def get_merchant_api_keys(
     merchant_id: int,
     db: Session = Depends(get_db),
-    _: bool = Depends(require_super_admin)
+    _: bool = Depends(require_admin_password)
 ):
     """獲取商戶的API Keys"""
     return MerchantService.get_merchant_api_keys(db, merchant_id)
@@ -104,7 +104,7 @@ async def revoke_api_key(
     merchant_id: int,
     api_key_id: int,
     db: Session = Depends(get_db),
-    _: bool = Depends(require_super_admin)
+    _: bool = Depends(require_admin_password)
 ):
     """撤銷API Key"""
     success = MerchantService.revoke_api_key(db, api_key_id, merchant_id)
@@ -119,7 +119,7 @@ async def revoke_api_key(
 async def get_merchant_statistics(
     merchant_id: int,
     db: Session = Depends(get_db),
-    _: bool = Depends(require_super_admin)
+    _: bool = Depends(require_admin_password)
 ):
     """獲取商戶統計資訊"""
     # 檢查商戶是否存在

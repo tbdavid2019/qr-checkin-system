@@ -1,6 +1,8 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Text
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, UUID, Text
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from sqlalchemy.sql import text, func
+import uuid
+
 from .base import Base
 
 
@@ -8,6 +10,7 @@ class Ticket(Base):
     __tablename__ = "tickets"
     
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"), default=uuid.uuid4, unique=True, nullable=False, index=True)
     event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
     ticket_type_id = Column(Integer, ForeignKey("ticket_types.id"), nullable=True)
     ticket_code = Column(String(50), unique=True, nullable=False, index=True)
@@ -19,6 +22,7 @@ class Ticket(Base):
     description = Column(Text, nullable=True)  # JSON 格式的額外資訊（座位、席次等）
     is_used = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
     
     # Relationships
     event = relationship("Event", back_populates="tickets")

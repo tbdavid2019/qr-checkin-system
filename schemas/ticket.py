@@ -4,6 +4,7 @@
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
+import uuid
 
 # 票券基本 schema
 class TicketBase(BaseModel):
@@ -27,12 +28,26 @@ class TicketUpdate(BaseModel):
 
 class Ticket(TicketBase):
     id: int
+    uuid: str  # <--- 將 uuid 型別改回 str
     event_id: int
     ticket_type_id: Optional[int]
     ticket_code: str
     is_used: bool
     created_at: datetime
+    updated_at: Optional[datetime] = None
     
+    class Config:
+        from_attributes = True
+
+# Public ticket information
+class TicketPublic(BaseModel):
+    uuid: str
+    holder_name: str
+    is_used: bool
+    event_id: int
+    ticket_type_id: Optional[int]
+    description: Optional[str] = None
+
     class Config:
         from_attributes = True
 
@@ -53,6 +68,9 @@ class TicketVerifyResponse(BaseModel):
     ticket_type_name: Optional[str] = None
     is_used: bool = False
     message: str
+
+class QRTokenResponse(BaseModel):
+    qr_token: str
 
 # 批次產票
 class BatchTicketCreate(BaseModel):
