@@ -148,7 +148,14 @@ class TicketService:
         if not event or not ticket_type:
             raise ValueError("Event 或 TicketType 不屬於此商戶或不存在")
 
-        # 檢查票券配額
+        # 檢查活動總配額限制
+        if event.total_quota is not None and event.total_quota > 0:
+            current_total_tickets = db.query(Ticket).filter(Ticket.event_id == batch_data.event_id).count()
+            if current_total_tickets + batch_data.count > event.total_quota:
+                remaining_quota = event.total_quota - current_total_tickets
+                raise ValueError(f"超出活動總配額。請求建立 {batch_data.count} 張，但剩餘配額僅為 {remaining_quota} 張。")
+
+        # 檢查票種配額
         if ticket_type.quota is not None and ticket_type.quota > 0:
             current_ticket_count = db.query(Ticket).filter(Ticket.ticket_type_id == batch_data.ticket_type_id).count()
             if current_ticket_count + batch_data.count > ticket_type.quota:
@@ -208,15 +215,25 @@ class TicketService:
     @staticmethod
     def create_ticket_with_merchant(db: Session, ticket_data: TicketCreate, merchant_id: int = None) -> Ticket:
         """多租戶安全地建立單張票券"""
-        # 驗證活動屬於該商戶
+        # 驗證活動屬於該商戶並獲取活動資訊
         if merchant_id:
             event = db.query(Event).filter(
                 and_(Event.id == ticket_data.event_id, Event.merchant_id == merchant_id)
             ).first()
             if not event:
                 raise ValueError("Event not found or no permission")
+        else:
+            event = db.query(Event).filter(Event.id == ticket_data.event_id).first()
+            if not event:
+                raise ValueError("Event not found")
         
-        # 驗證票種屬於該活動並檢查配額
+        # 檢查活動總配額限制
+        if event.total_quota is not None and event.total_quota > 0:
+            current_total_tickets = db.query(Ticket).filter(Ticket.event_id == ticket_data.event_id).count()
+            if current_total_tickets >= event.total_quota:
+                raise ValueError(f"超出活動總配額。活動配額 ({event.total_quota}) 已滿。")
+        
+        # 驗證票種屬於該活動並檢查票種配額
         if ticket_data.ticket_type_id:
             ticket_type = db.query(TicketType).filter(
                 and_(TicketType.id == ticket_data.ticket_type_id, TicketType.event_id == ticket_data.event_id)
@@ -224,7 +241,7 @@ class TicketService:
             if not ticket_type:
                 raise ValueError("Ticket type not found or does not belong to the event")
 
-            # 檢查票券配額
+            # 檢查票種配額
             if ticket_type.quota is not None and ticket_type.quota > 0:
                 current_ticket_count = db.query(Ticket).filter(Ticket.ticket_type_id == ticket_data.ticket_type_id).count()
                 if current_ticket_count >= ticket_type.quota:

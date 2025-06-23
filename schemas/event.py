@@ -11,6 +11,7 @@ class EventBase(BaseModel):
     start_time: datetime
     end_time: datetime
     location: Optional[str] = None
+    total_quota: Optional[int] = None
 
 class EventCreate(EventBase):
     pass
@@ -21,6 +22,7 @@ class EventUpdate(BaseModel):
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     location: Optional[str] = None
+    total_quota: Optional[int] = None
     is_active: Optional[bool] = None
 
 class Event(EventBase):

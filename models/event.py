@@ -14,6 +14,7 @@ class Event(Base):
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
     location = Column(String(200), nullable=True)
+    total_quota = Column(Integer, nullable=True, default=None)  # 活動總票券配額
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
