@@ -86,12 +86,25 @@ def get_current_staff(
         raise credentials_exception
     return staff
 
-def get_current_active_staff(current_staff: Staff = Depends(get_current_staff)) -> Staff:
+def get_current_active_staff(current_staff: Staff = Depends(get_current_staff)):
     """
-    Checks if the user obtained from the token is active. 
+    Checks if the user obtained from the token is active and returns StaffProfile schema.
     This is an additional layer, although `get_current_staff` already checks for active status.
     It provides semantic clarity in the route dependencies.
     """
     if not current_staff.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
-    return current_staff
+    
+    # Import here to avoid circular imports
+    from schemas.staff import StaffProfile
+    
+    # Convert Staff model to StaffProfile schema
+    return StaffProfile(
+        id=current_staff.id,
+        username=current_staff.username,
+        email=current_staff.email,
+        full_name=current_staff.full_name,
+        is_active=current_staff.is_active,
+        is_admin=current_staff.is_admin,
+        last_login=current_staff.last_login
+    )

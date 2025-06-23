@@ -67,18 +67,55 @@ class CheckInService:
     
     @staticmethod
     def get_checkin_logs_by_event(
-        db: Session, 
-        event_id: int, 
-        skip: int = 0, 
+        db: Session,
+        event_id: int,
+        skip: int = 0,
         limit: int = 100
-    ) -> List[CheckInLog]:
-        """獲取活動的簽到記錄"""
-        return (db.query(CheckInLog)
+    ) -> List[dict]:
+        """獲取活動的簽到記錄（包含票券和員工資訊）"""
+        logs = (db.query(CheckInLog)
                 .join(Ticket, CheckInLog.ticket_id == Ticket.id)
                 .filter(Ticket.event_id == event_id)
                 .offset(skip)
                 .limit(limit)
                 .all())
+        
+        result = []
+        for log in logs:
+            # 獲取票券資訊
+            ticket = db.query(Ticket).filter(Ticket.id == log.ticket_id).first()
+            ticket_info = {
+                "id": ticket.id,
+                "uuid": str(ticket.uuid),
+                "holder_name": ticket.holder_name,
+                "ticket_code": ticket.ticket_code,
+                "is_used": ticket.is_used
+            } if ticket else None
+            
+            # 獲取員工資訊
+            staff_info = None
+            if log.staff_id:
+                staff = db.query(Staff).filter(Staff.id == log.staff_id).first()
+                if staff:
+                    staff_info = {
+                        "id": staff.id,
+                        "username": staff.username,
+                        "full_name": staff.full_name
+                    }
+            
+            log_detail = {
+                "id": log.id,
+                "ticket_id": log.ticket_id,
+                "staff_id": log.staff_id,
+                "checkin_time": log.checkin_time,
+                "is_revoked": log.is_revoked,
+                "revoked_at": log.revoked_at,
+                "ticket": ticket_info,
+                "staff": staff_info
+            }
+            result.append(log_detail)
+        
+        return result
     
     @staticmethod
     def sync_offline_checkins(db: Session, sync_data: OfflineCheckInSync, staff_id: int) -> List[CheckInLog]:
