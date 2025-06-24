@@ -56,82 +56,92 @@ def setup_demo_merchants():
                 created_merchants.append(merchant)
                 continue
             
-            merchant = MerchantService.create_merchant(
-                db, 
-                MerchantCreate(**merchant_data)
-            )
-            created_merchants.append(merchant)
-            print(f"✅ 創建商戶: {merchant.name} (ID: {merchant.id})")
+            # 先創建商戶並獲取返回的字典
+            merchant_data_obj = MerchantCreate(**merchant_data)
+            merchant_dict = MerchantService.create_merchant(db, merchant_data_obj)
             
-            # 為每個商戶創建API Key
-            api_key = MerchantService.create_api_key(
-                db=db,
-                merchant_id=merchant.id,
-                key_name="主要API Key",
-                permissions={
-                    "events": ["read", "write"],
-                    "tickets": ["read", "write"],
-                    "staff": ["read", "write"]
-                }
-            )
-            print(f"🔑 創建API Key: {api_key.api_key}")
+            # 通過 ID 查詢商戶實體物件
+            merchant_id = merchant_dict["id"]
+            merchant = MerchantService.get_merchant_by_id(db, merchant_id)
+            
+            if merchant:
+                created_merchants.append(merchant)
+                print(f"✅ 創建商戶: {merchant.name} (ID: {merchant.id})")
+                print(f"🔑 預設API Key: {merchant_dict['api_key']}")
+            else:
+                print(f"⚠️ 無法獲取商戶物件，ID: {merchant_id}")
             
         except Exception as e:
             print(f"❌ 創建商戶失敗: {merchant_data['name']} - {e}")
     
     # 為每個商戶創建員工
     for merchant in created_merchants:
-        staff_data = [
-            {
-                "username": f"staff_{merchant.id}_1",
-                "password": "password123",
-                "name": f"{merchant.name} - 員工1",
-                "email": f"staff1@{merchant.name.lower().replace(' ', '')}.com",
-                "role": "admin"
-            },
-            {
-                "username": f"staff_{merchant.id}_2", 
-                "password": "password123",
-                "name": f"{merchant.name} - 員工2",
-                "email": f"staff2@{merchant.name.lower().replace(' ', '')}.com",
-                "role": "staff"
-            }
-        ]
-        
-        for staff_info in staff_data:
-            try:
-                # 檢查員工是否已存在
-                existing_staff = StaffService.get_staff_by_username(db, staff_info["username"])
-                if existing_staff:
-                    print(f"⚠️  員工 '{staff_info['username']}' 已存在，跳過創建")
-                    continue
+        try:
+            # 創建第一個員工 (管理員)
+            username1 = f"staff_{merchant.id}_1"
+            existing_staff1 = StaffService.get_staff_by_username(db, username1)
+            if existing_staff1:
+                print(f"⚠️  員工 '{username1}' 已存在，跳過創建")
+            else:
+                staff_create_1 = StaffCreate(
+                    username=username1,
+                    password="password123",
+                    full_name=f"{merchant.name} - 員工1",
+                    email=f"staff1@{merchant.name.lower().replace(' ', '')}.com",
+                    role="admin"
+                )
                 
-                staff = StaffService.create_staff(
+                staff1 = StaffService.create_staff(
                     db,
-                    StaffCreate(**staff_info),
+                    staff_create_1,
                     merchant_id=merchant.id
                 )
-                print(f"👤 為商戶 {merchant.name} 創建員工: {staff.full_name} (用戶名: {staff.username})")
+                print(f"👤 為商戶 {merchant.name} 創建員工: {staff1.full_name} (用戶名: {staff1.username})")
+            
+            # 創建第二個員工 (一般人員)
+            username2 = f"staff_{merchant.id}_2"
+            existing_staff2 = StaffService.get_staff_by_username(db, username2)
+            if existing_staff2:
+                print(f"⚠️  員工 '{username2}' 已存在，跳過創建")
+            else:
+                staff_create_2 = StaffCreate(
+                    username=username2,
+                    password="password123",
+                    full_name=f"{merchant.name} - 員工2",
+                    email=f"staff2@{merchant.name.lower().replace(' ', '')}.com",
+                    role="staff"
+                )
                 
-            except Exception as e:
-                print(f"❌ 創建員工失敗: {staff_info['username']} - {e}")
+                staff2 = StaffService.create_staff(
+                    db,
+                    staff_create_2,
+                    merchant_id=merchant.id
+                )
+                print(f"👤 為商戶 {merchant.name} 創建員工: {staff2.full_name} (用戶名: {staff2.username})")
+                
+        except Exception as e:
+            print(f"❌ 創建員工失敗: {e}")
+            import traceback
+            print(f"詳細錯誤: {traceback.format_exc()}")
     
     # 為每個商戶創建示例活動
     for merchant in created_merchants:
         events_data = [
             {
-                "name": f"{merchant.name} - 年度音樂節",  # 改為 name
+                "name": f"{merchant.name} - 年度音樂節",
                 "description": "大型戶外音樂節活動",
                 "start_time": "2024-06-15T18:00:00",
                 "end_time": "2024-06-15T23:00:00",
-                "location": f"{merchant.name}主場地"
+                "location": f"{merchant.name}主場地",
+                "total_quota": 5000
             },
             {
-                "name": f"{merchant.name} - 商業會議",  # 改為 name
+                "name": f"{merchant.name} - 商業會議",
                 "description": "企業年度會議",
                 "start_time": "2024-07-20T09:00:00", 
                 "end_time": "2024-07-20T17:00:00",
-                "location": f"{merchant.name}會議室"
+                "location": f"{merchant.name}會議室",
+                "total_quota": 200
             }
         ]
         

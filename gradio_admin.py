@@ -431,10 +431,11 @@ class GradioAdmin:
             ticket_type_data = TicketTypeCreate(
                 name=name,
                 price=price if price > 0 else 0,
-                quota=quota if quota > 0 else 0
+                quota=quota if quota > 0 else 0,
+                event_id=event_id
             )
             
-            ticket_type = EventService.create_ticket_type(db, event_id, ticket_type_data)
+            ticket_type = EventService.create_ticket_type(db, ticket_type_data)
             return f"成功創建票種: {ticket_type.name}"
         except Exception as e:
             print(f"Error in create_ticket_type: {e}")
