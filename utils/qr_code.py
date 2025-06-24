@@ -1,22 +1,36 @@
 """
-QR Code 生成工具
+QR Code generation utility
 """
 import qrcode
+import random
+import string
 from io import BytesIO
 from base64 import b64encode
 from typing import Optional
 
-def generate_qr_code(data: str, size: int = 10, border: int = 4) -> str:
+def generate_ticket_code(length: int = 8) -> str:
     """
-    生成 QR Code 並返回 base64 編碼的圖片
+    Generate a random ticket code
     
     Args:
-        data: 要編碼的數據
-        size: QR Code 大小
-        border: 邊框大小
+        length: Length of the ticket code (default: 8)
         
     Returns:
-        base64 編碼的 PNG 圖片字符串
+        Random alphanumeric ticket code
+    """
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
+
+def generate_qr_code(data: str, size: int = 10, border: int = 4) -> str:
+    """
+    Generate QR Code and return base64 encoded image
+    
+    Args:
+        data: Data to encode
+        size: QR Code size
+        border: Border size
+        
+    Returns:
+        base64 encoded PNG image string
     """
     qr = qrcode.QRCode(
         version=1,
@@ -29,7 +43,7 @@ def generate_qr_code(data: str, size: int = 10, border: int = 4) -> str:
 
     img = qr.make_image(fill_color="black", back_color="white")
     
-    # 轉換為 base64
+    # Convert to base64
     buffer = BytesIO()
     img.save(buffer, format='PNG')
     img_str = b64encode(buffer.getvalue()).decode()
@@ -38,20 +52,20 @@ def generate_qr_code(data: str, size: int = 10, border: int = 4) -> str:
 
 def generate_ticket_qr_url(base_url: str, qr_token: str) -> str:
     """
-    生成票券 QR Code URL
+    Generate ticket QR Code URL
     
     Args:
-        base_url: 基礎 URL（例如: https://yourapp.com）
+        base_url: Base URL (e.g.: https://yourapp.com)
         qr_token: QR token
         
     Returns:
-        完整的 QR Code URL
+        Complete QR Code URL
     """
     return f"{base_url}/verify?token={qr_token}"
 
 def generate_qr_code_response(data: str):
     """
-    生成 QR Code 並返回 FastAPI Response
+    Generate QR Code and return FastAPI Response
     """
     from fastapi.responses import Response
     import qrcode
@@ -68,7 +82,7 @@ def generate_qr_code_response(data: str):
 
     img = qr.make_image(fill_color="black", back_color="white")
     
-    # 轉換為 PNG bytes
+    # Convert to PNG bytes
     buffer = BytesIO()
     img.save(buffer, format='PNG')
     buffer.seek(0)

@@ -190,10 +190,14 @@ def delete_ticket_type(
     if not event or (settings.ENABLE_MULTI_TENANT and event.merchant_id != merchant.id):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    success = EventService.delete_ticket_type(db, ticket_type_id)
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to delete ticket type")
-    return None
+    try:
+        success = EventService.delete_ticket_type(db, ticket_type_id)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to delete ticket type for an unknown reason")
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+    return Response(status_code=204)
 
 @router.post("/{event_id}/offline-tickets", response_model=TicketType, deprecated=True)
 def create_offline_ticket_type(

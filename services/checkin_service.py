@@ -73,6 +73,10 @@ class CheckInService:
         limit: int = 100
     ) -> List[dict]:
         """獲取活動的簽到記錄（包含票券和員工資訊）"""
+        # 驗證分頁參數
+        skip = max(0, skip)  # 確保 skip 不是負數
+        limit = max(1, min(100, limit))  # 確保 limit 在 1-100 之間
+        
         logs = (db.query(CheckInLog)
                 .join(Ticket, CheckInLog.ticket_id == Ticket.id)
                 .filter(Ticket.event_id == event_id)

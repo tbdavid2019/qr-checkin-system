@@ -61,11 +61,19 @@ class EventService:
     @staticmethod
     def get_events(db: Session, skip: int = 0, limit: int = 100) -> List[Event]:
         """獲取活動列表"""
+        # 驗證分頁參數
+        skip = max(0, skip)  # 確保 skip 不是負數
+        limit = max(1, min(100, limit))  # 確保 limit 在 1-100 之間
+        
         return db.query(Event).offset(skip).limit(limit).all()
     
     @staticmethod
     def get_events_by_merchant(db: Session, merchant_id: int, skip: int = 0, limit: int = 100) -> List[Event]:
         """獲取指定商戶的活動列表（支援分頁）"""
+        # 驗證分頁參數
+        skip = max(0, skip)  # 確保 skip 不是負數
+        limit = max(1, min(100, limit))  # 確保 limit 在 1-100 之間
+        
         return db.query(Event).filter(Event.merchant_id == merchant_id).offset(skip).limit(limit).all()
     
     @staticmethod
@@ -196,3 +204,87 @@ class EventService:
         db.delete(ticket_type)
         db.commit()
         return True
+    
+    @staticmethod
+    def get_ticket_type_by_id(db: Session, ticket_type_id: int) -> Optional[TicketType]:
+        """根據ID獲取票種"""
+        return db.query(TicketType).filter(TicketType.id == ticket_type_id).first()
+    
+    @staticmethod
+    def delete_ticket_type(db: Session, ticket_type_id: int) -> bool:
+        """刪除票種"""
+        ticket_type = db.query(TicketType).filter(TicketType.id == ticket_type_id).first()
+        if not ticket_type:
+            return False
+        
+        # 檢查是否有相關的票券
+        from models.ticket import Ticket
+        existing_tickets = db.query(Ticket).filter(Ticket.ticket_type_id == ticket_type_id).count()
+        if existing_tickets > 0:
+            raise ValueError(f"無法刪除票種，還有 {existing_tickets} 張票券使用此票種")
+        
+        db.delete(ticket_type)
+        db.commit()
+        return True
+    
+    @staticmethod
+    def get_event_summary(db: Session, event_id: int) -> dict:
+        """獲取活動摘要"""
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            raise ValueError("Event not found")
+        
+        # 取得票種資訊
+        ticket_types = db.query(TicketType).filter(TicketType.event_id == event_id).all()
+        
+        # 取得票券統計
+        from models.ticket import Ticket
+        total_tickets = db.query(Ticket).filter(Ticket.event_id == event_id).count()
+        used_tickets = db.query(Ticket).filter(
+            Ticket.event_id == event_id, 
+            Ticket.is_used == True
+        ).count()
+        
+        # 取得簽到統計
+        from models.checkin import CheckInLog
+        checkin_count = db.query(CheckInLog).join(Ticket).filter(
+            Ticket.event_id == event_id
+        ).count()
+        
+        ticket_type_summary = []
+        for tt in ticket_types:
+            tt_tickets = db.query(Ticket).filter(Ticket.ticket_type_id == tt.id).count()
+            tt_used = db.query(Ticket).filter(
+                Ticket.ticket_type_id == tt.id,
+                Ticket.is_used == True
+            ).count()
+            
+            ticket_type_summary.append({
+                "id": tt.id,
+                "name": tt.name,
+                "quota": tt.quota,
+                "issued": tt_tickets,
+                "used": tt_used,
+                "remaining": tt.quota - tt_tickets if tt.quota > 0 else None
+            })
+        
+        return {
+            "event": {
+                "id": event.id,
+                "name": event.name,
+                "description": event.description,
+                "start_time": event.start_time.isoformat() if event.start_time else None,
+                "end_time": event.end_time.isoformat() if event.end_time else None,
+                "location": event.location,
+                "total_quota": event.total_quota,
+                "is_active": event.is_active
+            },
+            "statistics": {
+                "total_tickets": total_tickets,
+                "used_tickets": used_tickets,
+                "unused_tickets": total_tickets - used_tickets,
+                "checkin_count": checkin_count,
+                "usage_rate": round(used_tickets / total_tickets * 100, 2) if total_tickets > 0 else 0
+            },
+            "ticket_types": ticket_type_summary
+        }

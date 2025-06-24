@@ -53,6 +53,10 @@ class MerchantService:
     @staticmethod
     def get_merchants(db: Session, skip: int = 0, limit: int = 100) -> List[Merchant]:
         """獲取商戶列表"""
+        # 驗證分頁參數
+        skip = max(0, skip)  # 確保 skip 不是負數
+        limit = max(1, min(100, limit))  # 確保 limit 在 1-100 之間
+        
         return db.query(Merchant).offset(skip).limit(limit).all()
     
     @staticmethod

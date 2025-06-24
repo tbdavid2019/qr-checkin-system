@@ -100,7 +100,7 @@ def revoke_checkin(
     if not checkin_log:
         raise HTTPException(status_code=404, detail="Check-in log not found")
 
-    ticket = TicketService.get_ticket_by_id(db, checkin_log.ticket_id)
+    ticket = TicketService.get_ticket(db, checkin_log.ticket_id)
     if not ticket:
         raise HTTPException(status_code=404, detail="Related ticket not found")
 
