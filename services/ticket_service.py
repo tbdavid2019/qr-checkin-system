@@ -15,6 +15,31 @@ class TicketService:
     @staticmethod
     def create_ticket(db: Session, ticket_data: TicketCreate) -> Ticket:
         """建立單張票券"""
+        # 檢查活動是否存在
+        event = db.query(Event).filter(Event.id == ticket_data.event_id).first()
+        if not event:
+            raise ValueError("Event not found")
+        
+        # 檢查活動總配額限制
+        if event.total_quota is not None and event.total_quota > 0:
+            current_total_tickets = db.query(Ticket).filter(Ticket.event_id == ticket_data.event_id).count()
+            if current_total_tickets >= event.total_quota:
+                raise ValueError(f"超出活動總配額。活動配額 ({event.total_quota}) 已滿。")
+        
+        # 驗證票種屬於該活動並檢查票種配額
+        if ticket_data.ticket_type_id:
+            ticket_type = db.query(TicketType).filter(
+                and_(TicketType.id == ticket_data.ticket_type_id, TicketType.event_id == ticket_data.event_id)
+            ).first()
+            if not ticket_type:
+                raise ValueError("Ticket type not found or does not belong to the event")
+
+            # 檢查票種配額
+            if ticket_type.quota is not None and ticket_type.quota > 0:
+                current_ticket_count = db.query(Ticket).filter(Ticket.ticket_type_id == ticket_data.ticket_type_id).count()
+                if current_ticket_count >= ticket_type.quota:
+                    raise ValueError(f"超出票種配額。配額 ({ticket_type.quota}) 已滿。")
+        
         # 生成唯一票券代碼
         while True:
             ticket_code = generate_ticket_code()
@@ -33,6 +58,32 @@ class TicketService:
     @staticmethod
     def create_batch_tickets(db: Session, batch_data: BatchTicketCreate) -> List[Ticket]:
         """批次建立票券"""
+        # 檢查活動是否存在
+        event = db.query(Event).filter(Event.id == batch_data.event_id).first()
+        if not event:
+            raise ValueError("Event not found")
+        
+        # 檢查活動總配額限制
+        if event.total_quota is not None and event.total_quota > 0:
+            current_total_tickets = db.query(Ticket).filter(Ticket.event_id == batch_data.event_id).count()
+            if current_total_tickets + batch_data.count > event.total_quota:
+                remaining_quota = event.total_quota - current_total_tickets
+                raise ValueError(f"超出活動總配額。請求建立 {batch_data.count} 張，但剩餘配額僅為 {remaining_quota} 張。")
+        
+        # 檢查票種配額
+        if batch_data.ticket_type_id:
+            ticket_type = db.query(TicketType).filter(
+                and_(TicketType.id == batch_data.ticket_type_id, TicketType.event_id == batch_data.event_id)
+            ).first()
+            if not ticket_type:
+                raise ValueError("Ticket type not found or does not belong to the event")
+                
+            if ticket_type.quota is not None and ticket_type.quota > 0:
+                current_ticket_count = db.query(Ticket).filter(Ticket.ticket_type_id == batch_data.ticket_type_id).count()
+                if current_ticket_count + batch_data.count > ticket_type.quota:
+                    remaining_quota = ticket_type.quota - current_ticket_count
+                    raise ValueError(f"超出票種配額。請求建立 {batch_data.count} 張，但剩餘配額僅為 {remaining_quota} 張。")
+        
         tickets = []
         for i in range(batch_data.count):
             # 生成唯一票券代碼

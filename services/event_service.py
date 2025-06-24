@@ -22,7 +22,36 @@ class EventService:
         db.commit()
         db.refresh(event)
         print(f"🔧 [DEBUG] 儲存後的活動物件: total_quota={event.total_quota}")  # 調試輸出
+        
+        # 自動建立預設票種
+        EventService._create_default_ticket_type(db, event)
+        
         return event
+    
+    @staticmethod
+    def _create_default_ticket_type(db: Session, event: Event) -> TicketType:
+        """為活動建立預設票種"""
+        # 檢查是否已經有票種
+        existing_ticket_types = db.query(TicketType).filter(TicketType.event_id == event.id).count()
+        if existing_ticket_types > 0:
+            return None  # 已有票種，不建立預設票種
+        
+        # 建立預設票種，配額設為活動總配額（如果有設定的話）
+        default_quota = event.total_quota if event.total_quota and event.total_quota > 0 else 0
+        
+        default_ticket_type = TicketType(
+            event_id=event.id,
+            name="一般票",
+            quota=default_quota,
+            is_active=True
+        )
+        
+        db.add(default_ticket_type)
+        db.commit()
+        db.refresh(default_ticket_type)
+        
+        print(f"🎫 [INFO] 為活動 {event.id} 建立預設票種: {default_ticket_type.name} (配額: {default_quota})")
+        return default_ticket_type
     
     @staticmethod
     def get_event_by_id(db: Session, event_id: int) -> Optional[Event]:
@@ -57,11 +86,40 @@ class EventService:
     @staticmethod
     def create_ticket_type(db: Session, ticket_type_data: TicketTypeCreate) -> TicketType:
         """建立票種"""
+        # 檢查票種配額是否會超過活動總配額
+        EventService._validate_ticket_type_quota(db, ticket_type_data.event_id, ticket_type_data.quota)
+        
         ticket_type = TicketType(**ticket_type_data.dict())
         db.add(ticket_type)
         db.commit()
         db.refresh(ticket_type)
         return ticket_type
+    
+    @staticmethod
+    def _validate_ticket_type_quota(db: Session, event_id: int, new_quota: int) -> None:
+        """驗證票種配額不會導致總配額超過活動限制"""
+        if not new_quota or new_quota <= 0:
+            return  # 無限制配額，跳過檢查
+        
+        # 獲取活動資訊
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event or not event.total_quota or event.total_quota <= 0:
+            return  # 活動不存在或無配額限制，跳過檢查
+        
+        # 計算現有票種配額總和
+        existing_ticket_types = db.query(TicketType).filter(TicketType.event_id == event_id).all()
+        total_ticket_type_quota = sum(tt.quota for tt in existing_ticket_types if tt.quota and tt.quota > 0)
+        
+        # 檢查新配額是否會導致超過活動總配額
+        projected_total = total_ticket_type_quota + new_quota
+        if projected_total > event.total_quota:
+            raise ValueError(
+                f"票種配額總和將超過活動總配額。"
+                f"現有票種配額總和: {total_ticket_type_quota}, "
+                f"新增配額: {new_quota}, "
+                f"總計: {projected_total}, "
+                f"活動配額上限: {event.total_quota}"
+            )
     
     @staticmethod
     def get_ticket_types_by_event(db: Session, event_id: int) -> List[TicketType]:

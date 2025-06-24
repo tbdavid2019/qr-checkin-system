@@ -383,6 +383,138 @@ class GradioAdmin:
         finally:
             db.close()
     
+    # 票種管理
+    def get_ticket_types_data(self, event_id: int) -> pd.DataFrame:
+        """獲取票種數據"""
+        if not event_id:
+            return pd.DataFrame()
+        
+        db = self.get_db_session()
+        try:
+            from models.ticket_type import TicketType
+            ticket_types = db.query(TicketType).filter(TicketType.event_id == event_id).all()
+            
+            data = []
+            for tt in ticket_types:
+                # 計算已使用票券數量
+                from models.ticket import Ticket
+                used_count = db.query(Ticket).filter(
+                    Ticket.ticket_type_id == tt.id
+                ).count()
+                
+                data.append({
+                    "ID": tt.id,
+                    "票種名稱": tt.name,
+                    "價格": float(tt.price) if tt.price else 0.0,
+                    "配額": tt.quota,
+                    "已產出": used_count,
+                    "剩餘": tt.quota - used_count if tt.quota > 0 else "無限制",
+                    "狀態": "啟用" if tt.is_active else "停用"
+                })
+            return pd.DataFrame(data)
+        except Exception as e:
+            print(f"Error in get_ticket_types_data: {e}")
+            return pd.DataFrame()
+        finally:
+            db.close()
+    
+    def create_ticket_type(self, event_id: int, name: str, price: float, quota: int) -> str:
+        """創建票種"""
+        if not event_id or not name:
+            return "請填寫完整資訊"
+        
+        db = self.get_db_session()
+        try:
+            from schemas.event import TicketTypeCreate
+            from services.event_service import EventService
+            
+            ticket_type_data = TicketTypeCreate(
+                name=name,
+                price=price if price > 0 else 0,
+                quota=quota if quota > 0 else 0
+            )
+            
+            ticket_type = EventService.create_ticket_type(db, event_id, ticket_type_data)
+            return f"成功創建票種: {ticket_type.name}"
+        except Exception as e:
+            print(f"Error in create_ticket_type: {e}")
+            return f"創建失敗: {str(e)}"
+        finally:
+            db.close()
+    
+    def create_single_ticket(self, event_id: int, ticket_type_id: int, holder_name: str, 
+                           holder_email: str = None, holder_phone: str = None, notes: str = None) -> str:
+        """創建單張票券"""
+        if not event_id or not holder_name:
+            return "請填寫活動ID和持有人姓名"
+        
+        db = self.get_db_session()
+        try:
+            from schemas.ticket import TicketCreate
+            
+            ticket_data = TicketCreate(
+                event_id=event_id,
+                ticket_type_id=ticket_type_id if ticket_type_id > 0 else None,
+                holder_name=holder_name,
+                holder_email=holder_email if holder_email else None,
+                holder_phone=holder_phone if holder_phone else None,
+                notes=notes if notes else None
+            )
+            
+            ticket = TicketService.create_ticket(db, ticket_data)
+            return f"成功創建票券: {ticket.ticket_code} (持有人: {ticket.holder_name})"
+        except Exception as e:
+            print(f"Error in create_single_ticket: {e}")
+            return f"創建失敗: {str(e)}"
+        finally:
+            db.close()
+    
+    def create_batch_tickets(self, event_id: int, ticket_type_id: int, count: int, 
+                           name_prefix: str = "批次票券") -> str:
+        """批次創建票券"""
+        if not event_id or count <= 0:
+            return "請填寫正確的活動ID和票券數量"
+        
+        db = self.get_db_session()
+        try:
+            from schemas.ticket import BatchTicketCreate
+            
+            batch_data = BatchTicketCreate(
+                event_id=event_id,
+                ticket_type_id=ticket_type_id if ticket_type_id > 0 else None,
+                count=count,
+                holder_name_prefix=name_prefix
+            )
+            
+            tickets = TicketService.create_batch_tickets(db, batch_data)
+            return f"成功創建 {len(tickets)} 張票券"
+        except Exception as e:
+            print(f"Error in create_batch_tickets: {e}")
+            return f"創建失敗: {str(e)}"
+        finally:
+            db.close()
+    
+    def get_ticket_types_for_event(self, event_id: int) -> list:
+        """獲取活動的票種選項"""
+        if not event_id:
+            return []
+        
+        db = self.get_db_session()
+        try:
+            from models.ticket_type import TicketType
+            ticket_types = db.query(TicketType).filter(
+                TicketType.event_id == event_id,
+                TicketType.is_active == True
+            ).all()
+            
+            choices = [(f"{tt.name} (ID: {tt.id})", tt.id) for tt in ticket_types]
+            return choices
+        except Exception as e:
+            print(f"Error in get_ticket_types_for_event: {e}")
+            return []
+        finally:
+            db.close()
+
     def create_interface(self):
         """創建Gradio界面"""
         with gr.Blocks(title="QR Check-in 管理介面", theme=gr.themes.Soft()) as app:
@@ -492,6 +624,52 @@ class GradioAdmin:
                 event_delete_status = gr.Textbox(label="狀態")
                 event_delete_btn.click(self.delete_event, inputs=[event_id_delete], outputs=[event_delete_status])
 
+            # 票種管理
+            with gr.Tab("票種管理"):
+                with gr.Row():
+                    with gr.Column():
+                        gr.Markdown("## 查看票種")
+                        tt_event_id = gr.Number(label="活動ID")
+                        tt_refresh_btn = gr.Button("查看票種列表")
+                        ticket_types_table = gr.DataFrame(
+                            headers=["ID", "票種名稱", "價格", "配額", "已產出", "剩餘", "狀態"],
+                            label="票種列表"
+                        )
+                    
+                    with gr.Column():
+                        gr.Markdown("## 新增票種")
+                        tt_new_event_id = gr.Number(label="活動ID")
+                        tt_name = gr.Textbox(label="票種名稱", placeholder="例如: 一般票、VIP票")
+                        tt_price = gr.Number(label="價格", minimum=0, value=0)
+                        tt_quota = gr.Number(label="配額 (0=無限制)", minimum=0, value=0)
+                        tt_create_btn = gr.Button("創建票種", variant="primary")
+                        tt_create_status = gr.Textbox(label="操作狀態", interactive=False)
+
+            # 產票管理
+            with gr.Tab("產票管理"):
+                with gr.Row():
+                    with gr.Column():
+                        gr.Markdown("## 單張產票")
+                        single_event_id = gr.Number(label="活動ID")
+                        single_ticket_type = gr.Dropdown(label="票種", choices=[], interactive=True)
+                        single_refresh_types_btn = gr.Button("刷新票種列表")
+                        single_holder_name = gr.Textbox(label="持有人姓名", placeholder="請輸入持有人姓名")
+                        single_holder_email = gr.Textbox(label="電子郵件 (選填)", placeholder="example@email.com")
+                        single_holder_phone = gr.Textbox(label="電話 (選填)", placeholder="0912345678")
+                        single_notes = gr.Textbox(label="備註 (選填)", placeholder="其他備註資訊")
+                        single_create_btn = gr.Button("產生票券", variant="primary")
+                        single_create_status = gr.Textbox(label="操作狀態", interactive=False)
+                    
+                    with gr.Column():
+                        gr.Markdown("## 批次產票")
+                        batch_event_id = gr.Number(label="活動ID")
+                        batch_ticket_type = gr.Dropdown(label="票種", choices=[], interactive=True)
+                        batch_refresh_types_btn = gr.Button("刷新票種列表")
+                        batch_count = gr.Number(label="票券數量", minimum=1, maximum=100, value=1)
+                        batch_name_prefix = gr.Textbox(label="持有人前綴", value="批次票券", placeholder="例如: 批次票券")
+                        batch_create_btn = gr.Button("批次產票", variant="primary")
+                        batch_create_status = gr.Textbox(label="操作狀態", interactive=False)
+
             # 門票管理
             with gr.Tab("門票管理"):
                 with gr.Row():
@@ -572,6 +750,53 @@ class GradioAdmin:
                 outputs=[api_keys_table]
             )
             
+            # 票種管理事件處理
+            tt_refresh_btn.click(
+                self.get_ticket_types_data,
+                inputs=[tt_event_id],
+                outputs=[ticket_types_table]
+            )
+            
+            tt_create_btn.click(
+                self.create_ticket_type,
+                inputs=[tt_new_event_id, tt_name, tt_price, tt_quota],
+                outputs=[tt_create_status]
+            )
+            
+            # 產票管理事件處理
+            def update_ticket_types_for_single(event_id):
+                choices = self.get_ticket_types_for_event(event_id)
+                return gr.update(choices=choices)
+            
+            def update_ticket_types_for_batch(event_id):
+                choices = self.get_ticket_types_for_event(event_id)
+                return gr.update(choices=choices)
+            
+            single_refresh_types_btn.click(
+                update_ticket_types_for_single,
+                inputs=[single_event_id],
+                outputs=[single_ticket_type]
+            )
+            
+            batch_refresh_types_btn.click(
+                update_ticket_types_for_batch,
+                inputs=[batch_event_id],
+                outputs=[batch_ticket_type]
+            )
+            
+            single_create_btn.click(
+                self.create_single_ticket,
+                inputs=[single_event_id, single_ticket_type, single_holder_name, 
+                       single_holder_email, single_holder_phone, single_notes],
+                outputs=[single_create_status]
+            )
+            
+            batch_create_btn.click(
+                self.create_batch_tickets,
+                inputs=[batch_event_id, batch_ticket_type, batch_count, batch_name_prefix],
+                outputs=[batch_create_status]
+            )
+
             # 初始載入
             app.load(
                 lambda: (self.get_system_overview(), self.get_merchants_data(), update_merchant_dropdown()),

@@ -113,7 +113,7 @@ def revoke_checkin(
 
     try:
         CheckInService.revoke_checkin(db, revoke_data.checkin_log_id, current_staff.id)
-        return APIResponse(message="Check-in revoked successfully")
+        return APIResponse(success=True, message="Check-in revoked successfully")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
