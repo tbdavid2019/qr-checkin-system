@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>會員票券查詢 - QR Check-in System</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2rem;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .ticket-info {
+            text-align: left;
+            margin-bottom: 20px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .info-value {
+            color: #333;
+        }
+
+        .qr-section {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .qr-code {
+            max-width: 200px;
+            max-height: 200px;
+            margin: 20px auto;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #a66;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .loading {
+            display: none;
+            color: #667eea;
+            margin-top: 20px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-valid {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-used {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .event-section {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #2196f3;
+        }
+
+        .event-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1976d2;
+            margin-bottom: 8px;
+        }
+
+        .personal-info {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #ff9800;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 25px;
+                margin: 10px;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎫 會員票券查詢</h1>
+        <p class="subtitle">輸入您的票券 UUID 來查看詳細資訊</p>
+        
+        <div class="input-group">
+            <label for="ticketUuid">票券 UUID：</label>
+            <input type="text" id="ticketUuid" placeholder="例如：132a082d-1d45-4bf8-820d-bac72b650bec">
+        </div>
+        
+        <button class="btn" onclick="lookupTicket()">查詢我的票券</button>
+        
+        <div class="loading" id="loading">🔍 查詢中...</div>
+        
+        <div class="result-section" id="result-section">
+            <div id="result"></div>
+        </div>
+    </div>
+
+    <script>
+        async function lookupTicket() {
+            const uuid = document.getElementById('ticketUuid').value.trim();
+            const resultDiv = document.getElementById('result');
+            const resultSection = document.getElementById('result-section');
+            const loadingDiv = document.getElementById('loading');
+            const button = document.querySelector('.btn');
+            
+            if (!uuid) {
+                showError('請輸入票券 UUID');
+                return;
+            }
+            
+            // Show loading state
+            loadingDiv.style.display = 'block';
+            button.disabled = true;
+            resultSection.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/v1/public/tickets/' + uuid);
+                
+                if (!response.ok) {
+                    throw new Error('票券不存在或查詢失敗');
+                }
+                
+                const ticket = await response.json();
+                displayTicketInfo(ticket);
+                
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                loadingDiv.style.display = 'none';
+                button.disabled = false;
+            }
+        }
+        
+        function showError(message) {
+            const resultDiv = document.getElementById('result');
+            const resultSection = document.getElementById('result-section');
+            
+            resultDiv.innerHTML = '<div class="error">❌ ' + message + '</div>';
+            resultSection.style.display = 'block';
+        }
+        
+        function displayTicketInfo(ticket) {
+            const statusClass = ticket.is_used ? 'status-used' : 'status-valid';
+            const statusText = ticket.is_used ? '已使用' : '有效';
+            const statusIcon = ticket.is_used ? '❌' : '✅';
+            
+            // 格式化日期時間
+            const formatDateTime = (dateString) => {
+                if (!dateString) return '未設定';
+                return new Date(dateString).toLocaleString('zh-TW', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            };
+            
+            let personalInfoHTML = '';
+            if (ticket.holder_email || ticket.holder_phone) {
+                personalInfoHTML = '<div class="personal-info"><h4>👤 持票人資訊</h4>';
+                if (ticket.holder_email) personalInfoHTML += '<div>📧 ' + ticket.holder_email + '</div>';
+                if (ticket.holder_phone) personalInfoHTML += '<div>📱 ' + ticket.holder_phone + '</div>';
+                personalInfoHTML += '</div>';
+            }
+            
+            let qrSectionHTML = '';
+            if (!ticket.is_used) {
+                qrSectionHTML = '<div class="qr-section"><h3>📱 入場 QR Code</h3>' +
+                    '<img src="/api/v1/public/tickets/' + ticket.uuid + '/qr" alt="入場 QR Code" class="qr-code">' +
+                    '<div style="margin-top: 10px; font-size: 14px; color: #666;">請向工作人員出示此 QR Code 進行入場驗證</div></div>';
+            } else {
+                qrSectionHTML = '<div class="qr-section" style="color: #666;"><h3>🚫 票券已使用</h3>' +
+                    '<div>此票券已經完成入場驗證，無法重複使用</div></div>';
+            }
+            
+            const html = 
+                '<div class="ticket-info">' +
+                    '<div class="event-section">' +
+                        '<div class="event-title">🎪 ' + ticket.event_name + '</div>' +
+                        (ticket.event_description ? '<div>📝 ' + ticket.event_description + '</div>' : '') +
+                        (ticket.event_location ? '<div>📍 ' + ticket.event_location + '</div>' : '') +
+                        (ticket.event_start_time ? '<div>🕐 ' + formatDateTime(ticket.event_start_time) + 
+                            (ticket.event_end_time ? ' 至 ' + formatDateTime(ticket.event_end_time) : '') + '</div>' : '') +
+                    '</div>' +
+                    
+                    '<div class="info-row">' +
+                        '<span class="info-label">票券狀態：</span>' +
+                        '<span class="info-value"><span class="status-badge ' + statusClass + '">' + statusIcon + ' ' + statusText + '</span></span>' +
+                    '</div>' +
+                    
+                    '<div class="info-row">' +
+                        '<span class="info-label">持票人：</span>' +
+                        '<span class="info-value">👤 ' + ticket.holder_name + '</span>' +
+                    '</div>' +
+                    
+                    (ticket.ticket_type_name ? 
+                        '<div class="info-row">' +
+                            '<span class="info-label">票種：</span>' +
+                            '<span class="info-value">🎫 ' + ticket.ticket_type_name + '</span>' +
+                        '</div>' : '') +
+                    
+                    personalInfoHTML +
+                    qrSectionHTML +
+                '</div>';
+            
+            document.getElementById('result').innerHTML = html;
+            document.getElementById('result-section').style.display = 'block';
+        }
+        
+        // Allow Enter key to trigger search
+        document.getElementById('ticketUuid').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                lookupTicket();
+            }
+        });
+        
+        // Auto-focus on input field
+        document.getElementById('ticketUuid').focus();
+    </script>
+</body>
+</html>

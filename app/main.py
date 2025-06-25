@@ -3,6 +3,8 @@ QR Check-in System Main Application
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from app.config import settings
 
 # --- New Router Imports ---
@@ -76,6 +78,9 @@ The API is structured into four main categories based on user roles:
     ]
 )
 
+# Mount static files directory
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
@@ -104,6 +109,11 @@ app.include_router(public_tickets.router)
 
 
 # --- Root and Health Check Endpoints ---
+
+@app.get("/member-ticket", include_in_schema=False)
+async def get_member_ticket_page():
+    """Serves the member ticket lookup page."""
+    return FileResponse('app/static/member_ticket.html')
 
 @app.get("/", include_in_schema=False)
 def read_root():

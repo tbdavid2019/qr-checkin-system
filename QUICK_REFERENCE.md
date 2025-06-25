@@ -47,6 +47,7 @@ API Key: qr_EKoHBUDPnRtnonUUrWFeB9vExlWjSXGE
 
 ## 🌐 服務端點
 - **API 文檔**: http://localhost:8000/docs
+- **會員票券查詢**: http://localhost:8000/member-ticket
 - **健康檢查**: http://localhost:8000/health
 - **Gradio 管理**: http://localhost:7860
 
