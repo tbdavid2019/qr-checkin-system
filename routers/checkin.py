@@ -1,5 +1,5 @@
 """
-票券核銷與紀錄 API (員工操作)
+Check-in and logging API for staff operations
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -142,20 +142,20 @@ def get_checkin_logs(
     return logs
 
 
-@router.post("/sync", response_model=APIResponse, summary="Sync offline check-in records", description="批次同步離線簽到記錄。支援掃描員工於會場無網路時，將多筆簽到資料暫存，待網路恢復後一次上傳。已簽到過的票券會自動跳過，不會重複簽到。回傳訊息會顯示實際新增的簽到筆數。")
+@router.post("/sync", response_model=APIResponse, summary="Sync offline check-in records", description="Batch sync offline check-in records. Allows staff to cache multiple check-ins when offline and upload them at once when connectivity is restored. Already checked-in tickets will be skipped. The response message indicates the number of new check-ins created.")
 def sync_offline_checkins(
     sync_data: OfflineCheckInSync,
     current_staff: StaffProfile = Depends(get_current_active_staff),
     db: Session = Depends(get_db)
 ):
     """
-    批次同步離線簽到記錄。
-    - 需員工 JWT 認證。
-    - 輸入為多筆離線簽到資料。
-    - 已簽到過的票券會自動跳過。
+    Batch sync offline check-in records.
+    - Requires staff JWT authentication.
+    - Input is a list of offline check-in data.
+    - Already checked-in tickets will be skipped automatically.
     """
     try:
         logs = CheckInService.sync_offline_checkins(db, sync_data, current_staff.id)
-        return APIResponse(success=True, message=f"同步成功，共新增 {len(logs)} 筆簽到紀錄。")
+        return APIResponse(success=True, message=f"Sync successful, created {len(logs)} new check-in records.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"同步失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")

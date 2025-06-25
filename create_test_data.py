@@ -1,14 +1,23 @@
 """
-添加測試數據
+添加測試數據 (Multi-tenant Version)
+使用新的多租戶架構創建測試數據
 """
 import sys
-sys.path.append('.')
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from app.database import SessionLocal
-from models import Event, TicketType, Staff, StaffEvent, Ticket
-from utils.security import get_password_hash, generate_login_code, generate_ticket_code
+from app.database import get_db
+from services.merchant_service import MerchantService
+from services.staff_service import StaffService
+from services.event_service import EventService
+from services.ticket_service import TicketService
+from schemas.merchant import MerchantCreate
+from schemas.staff import StaffCreate
+from schemas.event import EventCreate
+from schemas.ticket import TicketTypeCreate, TicketCreate
+from utils.security import get_password_hash
 
 def create_test_data():
     db: Session = SessionLocal()
