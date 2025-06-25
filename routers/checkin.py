@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_active_staff
 from schemas.checkin import (
-    CheckInRequest, CheckInResponse, CheckInRevoke, CheckInLogDetail
+    CheckInRequest, CheckInResponse, CheckInRevoke, CheckInLogDetail, OfflineCheckInSync
 )
 from schemas.common import APIResponse
 from services.checkin_service import CheckInService
@@ -140,3 +140,22 @@ def get_checkin_logs(
 
     logs = CheckInService.get_checkin_logs_by_event(db, event_id, skip, limit)
     return logs
+
+
+@router.post("/sync", response_model=APIResponse, summary="Sync offline check-in records", description="批次同步離線簽到記錄。支援掃描員工於會場無網路時，將多筆簽到資料暫存，待網路恢復後一次上傳。已簽到過的票券會自動跳過，不會重複簽到。回傳訊息會顯示實際新增的簽到筆數。")
+def sync_offline_checkins(
+    sync_data: OfflineCheckInSync,
+    current_staff: StaffProfile = Depends(get_current_active_staff),
+    db: Session = Depends(get_db)
+):
+    """
+    批次同步離線簽到記錄。
+    - 需員工 JWT 認證。
+    - 輸入為多筆離線簽到資料。
+    - 已簽到過的票券會自動跳過。
+    """
+    try:
+        logs = CheckInService.sync_offline_checkins(db, sync_data, current_staff.id)
+        return APIResponse(success=True, message=f"同步成功，共新增 {len(logs)} 筆簽到紀錄。")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"同步失敗: {str(e)}")

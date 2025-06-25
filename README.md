@@ -10,7 +10,7 @@
 - **超級管理員** (`/admin/*`) - 使用 Admin Password 認證
 - **商戶管理** (`/api/v1/mgmt/*`) - 使用 API Key 認證  
 - **員工操作** (`/api/v1/staff/*`) - 使用 JWT Token 認證
-- **公開端點** (`/api/v1/public/*`) - 無需認證
+-
 
 ### 🔐 多重認證機制
 - **X-Admin-Password**: 超級管理員認證
@@ -461,8 +461,7 @@ curl -X POST "http://localhost:8000/api/checkin" \
   -d '{"qr_token": "eyJhbGci...", "event_id": 1}'
 ```
 
-### 票券查詢 API 使用說明 (NEW!)
-#### 3. 票券查詢
+#### 步驟 6: 票券查詢
 ```bash
 # 查詢單張票券詳細資料
 curl -X GET "http://localhost:8000/api/tickets/1" \
@@ -477,7 +476,7 @@ curl -X GET "http://localhost:8000/api/tickets/holder/search?phone=0912345678&ev
   -H "X-API-Key: merchant-api-key"
 ```
 
-#### 4. 票券驗證
+#### 步驟 7: 票券驗證
 ```bash
 # 驗證票券 QR Token
 curl -X POST "http://localhost:8000/api/tickets/verify" \
@@ -485,7 +484,7 @@ curl -X POST "http://localhost:8000/api/tickets/verify" \
   -d '{"qr_token": "eyJhbGci..."}'
 ```
 
-#### 5. 執行簽到
+#### 步驟 8: 執行簽到
 ```bash
 # 執行票券簽到
 curl -X POST "http://localhost:8000/api/checkin" \
@@ -956,17 +955,18 @@ Staff-ID: 1                    # Staff ID under that merchant
 - **Merchant Management**: Create, view, update merchant information
 - **API Key Management**: Generate, view, revoke API Keys
 - **Event Management**: Create events, edit event descriptions, delete events
-- **Ticket Viewing**: View ticket list including ticket type, holder, **description field**, status, creation time
+- **Ticket Viewing**: View ticket list including ticket type, holder, **description欄位**, 狀態, 建立時間
 - **Staff Management**: View staff list under the merchant
 - **Check-in Records**: View check-in records for each event
 - **Statistics Dashboard**: View statistics for merchant's events, tickets, staff
 - **System Overview**: Overall multi-tenant system statistics
-- **Multi-Tenant Security**: All queries support merchant_id filtering to ensure data isolation
-- **Session Management**: Use sessionmaker to manage database sessions, avoid session conflicts
-- **Real-time Updates**: Interface components reflect database changes in real-time
+- **Multi-Tenant Security**: 所有查詢均支援 merchant_id 過濾，確保資料隔離
+- **Session Management**: 採用 sessionmaker 管理資料庫會話，避免會話衝突
+- **即時更新**: 介面元件即時反映資料庫變更
 
-## 🧪 Testing
+## 🧪 測試
 
+### API
 ### API Test Suite
 
 We provide a comprehensive API test suite supporting quick tests, authentication tests, complete system tests, and more:
@@ -1174,6 +1174,59 @@ curl -X POST "http://localhost:8000/api/checkin" \
   -H "Staff-ID: 1" \
   -d '{"qr_token": "eyJhbGci...", "event_id": 1}'
 ```
+
+## 🟢 離線簽到批次同步 API（2025/06 新增）
+
+支援掃描員工於會場無網路時，將多筆簽到資料暫存，待網路恢復後一次上傳。
+
+### API 路徑
+POST `/api/v1/staff/checkin/sync`
+
+### 認證
+- 需員工 JWT（Authorization: Bearer ...）
+
+### 請求格式
+```json
+{
+  "event_id": 1,
+  "checkins": [
+    {
+      "ticket_id": 101,
+      "event_id": 1,
+      "checkin_time": "2025-06-25T10:30:00.000000",
+      "client_timestamp": "1720000000"
+    },
+    ...
+  ]
+}
+```
+
+### 回應格式
+```json
+{
+  "success": true,
+  "message": "同步成功，共新增 2 筆簽到紀錄。"
+}
+```
+
+### curl 範例
+```bash
+curl -X POST "http://localhost:8000/api/v1/staff/checkin/sync" \
+  -H "Authorization: Bearer <JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_id": 1,
+    "checkins": [
+      {"ticket_id": 101, "event_id": 1, "checkin_time": "2025-06-25T10:30:00.000000", "client_timestamp": "1720000000"},
+      {"ticket_id": 102, "event_id": 1, "checkin_time": "2025-06-25T10:31:00.000000", "client_timestamp": "1720000060"}
+    ]
+  }'
+```
+
+### 注意事項
+- 已簽到過的票券會自動跳過，不會重複簽到。
+- 回傳訊息會顯示實際新增的簽到筆數。
+- 請於網路恢復時盡快同步，避免資料遺失。
 
 ## 🔧 配置說明
 
