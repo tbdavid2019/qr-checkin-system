@@ -50,10 +50,17 @@ def get_staff_by_id(
     """
     Get details of a specific staff member.
     """
-    staff = staff_service.StaffService.get_staff_by_id(db, staff_id)
-    if not staff or staff.merchant_id != current_merchant.id:
-        raise HTTPException(status_code=404, detail="Staff not found")
-    return staff
+    try:
+        staff = staff_service.StaffService.get_staff_by_id(db, staff_id)
+        if not staff or staff.merchant_id != current_merchant.id:
+            raise HTTPException(status_code=404, detail="Staff not found or does not belong to your merchant")
+        return staff
+    except HTTPException:
+        # 重新拋出HTTP異常
+        raise
+    except Exception as e:
+        # 捕獲所有其他異常，避免500錯誤
+        raise HTTPException(status_code=400, detail=f"Failed to get staff details: {str(e)}")
 
 @router.put("/{staff_id}", response_model=staff_schema.StaffProfile)
 def update_staff(
@@ -68,10 +75,16 @@ def update_staff(
     try:
         staff = staff_service.StaffService.update_staff(db, staff_id, staff_data, current_merchant.id)
         if not staff:
-            raise HTTPException(status_code=404, detail="Staff not found")
+            raise HTTPException(status_code=404, detail="Staff not found or does not belong to your merchant")
         return staff
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        # 重新拋出HTTP異常
+        raise
+    except Exception as e:
+        # 捕獲所有其他異常，避免500錯誤
+        raise HTTPException(status_code=400, detail=f"Failed to update staff: {str(e)}")
 
 @router.delete("/{staff_id}", response_model=APIResponse)
 def delete_staff(
@@ -82,10 +95,17 @@ def delete_staff(
     """
     Delete a staff member.
     """
-    success = staff_service.StaffService.delete_staff(db, staff_id, current_merchant.id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Staff not found")
-    return APIResponse(message="Staff deleted successfully")
+    try:
+        success = staff_service.StaffService.delete_staff(db, staff_id, current_merchant.id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Staff not found or does not belong to your merchant")
+        return APIResponse(message="Staff deleted successfully")
+    except HTTPException:
+        # 重新拋出HTTP異常
+        raise
+    except Exception as e:
+        # 捕獲所有其他異常，避免500錯誤
+        raise HTTPException(status_code=400, detail=f"Failed to delete staff: {str(e)}")
 
 @router.post("/events/assign", response_model=staff_schema.StaffEventPermissionResponse, summary="Assign event permission to staff")
 def assign_event_to_staff(

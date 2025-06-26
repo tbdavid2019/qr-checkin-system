@@ -52,6 +52,16 @@ def get_staff_events(
 ):
     """
     Get the list of events the currently logged-in staff member has permissions for.
+    
+    **時間過濾規則：**
+    - 只顯示近期相關的活動，避免顯示過多歷史活動
+    - 活動開始時間：今天到未來30天內
+    - 活動結束時間：不早於昨天（活動結束後1天內仍可見）
+    - 這樣的設計方便會前準備和事後統計
+    
+    **權限說明：**
+    - 若員工有特定活動權限設定，則依據設定
+    - 若無特定設定，預設為可簽到但不可撤銷
     """
     events = StaffService.get_staff_events(db, current_staff.id)
     return [

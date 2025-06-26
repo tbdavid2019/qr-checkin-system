@@ -46,22 +46,54 @@ class StaffService:
     
     @staticmethod
     def get_staff_events(db: Session, staff_id: int) -> List[dict]:
-        """獲取員工有權限的活動列表"""
-        staff_events = (db.query(StaffEvent, Event)
-                       .join(Event, StaffEvent.event_id == Event.id)
-                       .filter(StaffEvent.staff_id == staff_id)
-                       .filter(Event.is_active == True)
-                       .all())
+        """獲取員工可存取的活動列表（商戶下近期活動）"""
+        from datetime import datetime, timedelta
+        
+        # 先獲取員工資訊
+        staff = db.query(Staff).filter(Staff.id == staff_id).first()
+        if not staff or not staff.merchant_id:
+            return []
+        
+        # 計算時間範圍
+        now = datetime.now()
+        today = now.date()
+        
+        # 活動開始時間：今天開始到未來30天內
+        start_filter_min = datetime.combine(today, datetime.min.time())
+        start_filter_max = start_filter_min + timedelta(days=30)
+        
+        # 活動結束時間：不能早於昨天（活動結束後1天內仍可見）
+        end_filter_min = now - timedelta(days=1)
+        
+        # 查詢該商戶下符合時間條件的活動
+        events = (db.query(Event)
+                 .filter(Event.merchant_id == staff.merchant_id)
+                 .filter(Event.is_active == True)
+                 .filter(Event.start_time >= start_filter_min)
+                 .filter(Event.start_time <= start_filter_max)
+                 .filter(Event.end_time >= end_filter_min)
+                 .order_by(Event.start_time.asc())
+                 .all())
         
         result = []
-        for staff_event, event in staff_events:
+        for event in events:
+            # 檢查是否有特定權限設定
+            staff_event = (db.query(StaffEvent)
+                          .filter(StaffEvent.staff_id == staff_id)
+                          .filter(StaffEvent.event_id == event.id)
+                          .first())
+            
+            # 如果有特定權限設定則使用，否則預設為可簽到但不可撤銷
+            can_checkin = staff_event.can_checkin if staff_event else True
+            can_revoke = staff_event.can_revoke if staff_event else False
+            
             result.append({
                 "event_id": event.id,
                 "event_name": event.name,
                 "event_start_time": event.start_time,
                 "event_end_time": event.end_time,
-                "can_checkin": staff_event.can_checkin,
-                "can_revoke": staff_event.can_revoke
+                "can_checkin": can_checkin,
+                "can_revoke": can_revoke
             })
         
         return result

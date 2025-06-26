@@ -29,12 +29,8 @@ class Settings:
     ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin123")
     GRADIO_PORT: int = int(os.getenv("GRADIO_PORT", "7860"))
     
-    # 跨域配置
-    BACKEND_CORS_ORIGINS: list = [
-        "http://localhost:3000",
-        "http://localhost:8000", 
-        "http://localhost:8080",
-    ]
+    # 跨域配置 - 暫時允許所有來源
+    BACKEND_CORS_ORIGINS: list = ["*"]
     
     # QR Code 配置
     QR_TOKEN_EXPIRE_HOURS: int = 24 * 7  # QR Code Token 7 天過期
