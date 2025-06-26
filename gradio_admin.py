@@ -114,7 +114,7 @@ class GradioAdmin:
                 data.append({
                     "ID": key.id,
                     "名稱": key.key_name,
-                    "API Key": key.api_key[:16] + "..." if key.api_key else "",
+                    "API Key": key.api_key if key.api_key else "",  # 顯示完整 API Key
                     "狀態": "啟用" if key.is_active else "停用",
                     "最後使用": key.last_used_at.strftime("%Y-%m-%d %H:%M") if key.last_used_at else "從未使用",
                     "使用次數": key.usage_count,
@@ -333,6 +333,7 @@ class GradioAdmin:
             for ticket in tickets:
                 data.append({
                     "ID": ticket.id,
+                    "UUID": str(ticket.uuid) if ticket.uuid else "",
                     "票種": ticket.ticket_type.name if ticket.ticket_type else "未知",
                     "持有人": ticket.holder_name,
                     "描述": ticket.description or "",
@@ -560,20 +561,21 @@ class GradioAdmin:
                         gr.Markdown("## 選擇商戶")
                         merchant_dropdown = gr.Dropdown(label="選擇商戶", choices=[], interactive=True)
                         refresh_dropdown_btn = gr.Button("刷新商戶列表")
-                        
+                    
+                    with gr.Column():
                         gr.Markdown("## 創建API Key")
                         api_key_name = gr.Textbox(label="API Key名稱", placeholder="請輸入API Key名稱")
                         expires_days = gr.Number(label="過期天數（選填，留空表示永不過期）", minimum=1)
                         create_api_key_btn = gr.Button("創建API Key", variant="primary")
                         api_key_status = gr.Textbox(label="操作狀態", interactive=False)
-                    
-                    with gr.Column():
-                        gr.Markdown("## API Key列表")
-                        refresh_api_keys_btn = gr.Button("刷新API Key列表")
-                        api_keys_table = gr.DataFrame(
-                            headers=["ID", "名稱", "API Key", "狀態", "最後使用", "使用次數", "過期時間", "創建時間"],
-                            label="API Key列表"
-                        )
+                
+                # API Key 列表放在下方以便顯示完整內容
+                gr.Markdown("## API Key列表")
+                refresh_api_keys_btn = gr.Button("刷新API Key列表")
+                api_keys_table = gr.DataFrame(
+                    headers=["ID", "名稱", "API Key", "狀態", "最後使用", "使用次數", "過期時間", "創建時間"],
+                    label="API Key列表"
+                )
             
             # 員工管理
             with gr.Tab("員工管理"):
@@ -676,7 +678,7 @@ class GradioAdmin:
                 with gr.Row():
                     ticket_merchant_id = gr.Number(label="商戶ID (選填)", info="留空則查詢所有商戶")
                     ticket_event_id = gr.Number(label="活動ID")
-                ticket_table = gr.Dataframe(headers=["ID", "票種", "持有人", "描述", "狀態", "建立時間"])
+                ticket_table = gr.Dataframe(headers=["ID", "UUID", "票種", "持有人", "描述", "狀態", "建立時間"])
                 ticket_refresh_btn = gr.Button("刷新門票列表")
                 ticket_refresh_btn.click(self.get_tickets_data, inputs=[ticket_event_id, ticket_merchant_id], outputs=[ticket_table])
 
