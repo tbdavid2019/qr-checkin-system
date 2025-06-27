@@ -529,171 +529,178 @@ class GradioAdmin:
                 login_status = gr.Textbox(label="登入狀態", interactive=False)
                 auth_state = gr.State(False)
             
-            # 系統概覽
-            with gr.Tab("系統概覽"):
-                overview_btn = gr.Button("刷新概覽")
-                overview_data = gr.JSON(label="系統概覽")
-            
-            # 商戶管理
-            with gr.Tab("商戶管理"):
-                with gr.Row():
-                    with gr.Column():
-                        gr.Markdown("## 創建新商戶")
-                        merchant_name = gr.Textbox(label="商戶名稱", placeholder="請輸入商戶名稱")
-                        merchant_description = gr.Textbox(label="商戶描述", placeholder="請輸入商戶描述")
-                        contact_email = gr.Textbox(label="聯絡電子郵件", placeholder="請輸入電子郵件")
-                        contact_phone = gr.Textbox(label="聯絡電話（選填）", placeholder="請輸入電話號碼")
-                        create_merchant_btn = gr.Button("創建商戶", variant="primary")
-                        merchant_status = gr.Textbox(label="操作狀態", interactive=False)
-                    
-                    with gr.Column():
-                        gr.Markdown("## 商戶列表")
-                        refresh_merchants_btn = gr.Button("刷新列表")
-                        merchants_table = gr.DataFrame(
-                            headers=["ID", "商戶名稱", "描述", "電子郵件", "狀態", "活動數", "門票數", "員工數", "API Keys", "創建時間"],
-                            label="商戶列表"
-                        )
-            
-            # API Key 管理
-            with gr.Tab("API Key 管理"):
-                with gr.Row():
-                    with gr.Column():
-                        gr.Markdown("## 選擇商戶")
-                        merchant_dropdown = gr.Dropdown(label="選擇商戶", choices=[], interactive=True)
-                        refresh_dropdown_btn = gr.Button("刷新商戶列表")
-                    
-                    with gr.Column():
-                        gr.Markdown("## 創建API Key")
-                        api_key_name = gr.Textbox(label="API Key名稱", placeholder="請輸入API Key名稱")
-                        expires_days = gr.Number(label="過期天數（選填，留空表示永不過期）", minimum=1)
-                        create_api_key_btn = gr.Button("創建API Key", variant="primary")
-                        api_key_status = gr.Textbox(label="操作狀態", interactive=False)
+            # 權限保護的功能區域
+            with gr.Column(visible=False) as protected_content:
+                # 系統概覽
+                with gr.Tab("系統概覽"):
+                    overview_btn = gr.Button("刷新概覽")
+                    overview_data = gr.JSON(label="系統概覽")
                 
-                # API Key 列表放在下方以便顯示完整內容
-                gr.Markdown("## API Key列表")
-                refresh_api_keys_btn = gr.Button("刷新API Key列表")
-                api_keys_table = gr.DataFrame(
-                    headers=["ID", "名稱", "API Key", "狀態", "最後使用", "使用次數", "過期時間", "創建時間"],
-                    label="API Key列表"
-                )
+                # 商戶管理
+                with gr.Tab("商戶管理"):
+                    with gr.Row():
+                        with gr.Column():
+                            gr.Markdown("## 創建新商戶")
+                            merchant_name = gr.Textbox(label="商戶名稱", placeholder="請輸入商戶名稱")
+                            merchant_description = gr.Textbox(label="商戶描述", placeholder="請輸入商戶描述")
+                            contact_email = gr.Textbox(label="聯絡電子郵件", placeholder="請輸入電子郵件")
+                            contact_phone = gr.Textbox(label="聯絡電話（選填）", placeholder="請輸入電話號碼")
+                            create_merchant_btn = gr.Button("創建商戶", variant="primary")
+                            merchant_status = gr.Textbox(label="操作狀態", interactive=False)
+                        
+                        with gr.Column():
+                            gr.Markdown("## 商戶列表")
+                            refresh_merchants_btn = gr.Button("刷新列表")
+                            merchants_table = gr.DataFrame(
+                                headers=["ID", "商戶名稱", "描述", "電子郵件", "狀態", "活動數", "門票數", "員工數", "API Keys", "創建時間"],
+                                label="商戶列表"
+                            )
             
-            # 員工管理
-            with gr.Tab("員工管理"):
-                merchant_id_input = gr.Number(label="商戶ID")
-                staff_table = gr.Dataframe(headers=["ID", "帳號", "姓名", "Email", "狀態", "管理員", "建立時間"])
-                staff_refresh_btn = gr.Button("刷新員工列表")
-                staff_refresh_btn.click(self.get_staff_data, inputs=[merchant_id_input], outputs=[staff_table])
-                # 新增員工
-                staff_username = gr.Textbox(label="帳號")
-                staff_password = gr.Textbox(label="密碼", type="password")
-                staff_full_name = gr.Textbox(label="姓名")
-                staff_email = gr.Textbox(label="Email")
-                staff_is_admin = gr.Checkbox(label="管理員")
-                staff_create_btn = gr.Button("新增員工")
-                staff_create_status = gr.Textbox(label="狀態")
-                staff_create_btn.click(self.create_staff, inputs=[merchant_id_input, staff_username, staff_password, staff_full_name, staff_email, staff_is_admin], outputs=[staff_create_status])
-                # 刪除員工
-                staff_id_delete = gr.Number(label="員工ID")
-                staff_delete_btn = gr.Button("刪除員工")
-                staff_delete_status = gr.Textbox(label="狀態")
-                staff_delete_btn.click(self.delete_staff, inputs=[staff_id_delete], outputs=[staff_delete_status])
-
-            # 活動管理
-            with gr.Tab("活動管理"):
-                event_merchant_id = gr.Number(label="商戶ID")
-                event_table = gr.Dataframe(headers=["ID", "活動名稱", "描述", "地點", "開始時間", "結束時間", "狀態", "創建時間", "更新時間"])
-                event_refresh_btn = gr.Button("刷新活動列表")
-                event_refresh_btn.click(self.get_events_data, inputs=[event_merchant_id], outputs=[event_table])
+                # API Key 管理
+                with gr.Tab("API Key 管理"):
+                    with gr.Row():
+                        with gr.Column():
+                            gr.Markdown("## 選擇商戶")
+                            merchant_dropdown = gr.Dropdown(label="選擇商戶", choices=[], interactive=True)
+                            refresh_dropdown_btn = gr.Button("刷新商戶列表")
+                        
+                        with gr.Column():
+                            gr.Markdown("## 創建API Key")
+                            api_key_name = gr.Textbox(label="API Key名稱", placeholder="請輸入API Key名稱")
+                            expires_days = gr.Number(label="過期天數（選填，留空表示永不過期）", minimum=1)
+                            create_api_key_btn = gr.Button("創建API Key", variant="primary")
+                            api_key_status = gr.Textbox(label="操作狀態", interactive=False)
                 
-                # 新增活動
-                gr.Markdown("### 新增活動")
-                event_name = gr.Textbox(label="活動名稱")
-                event_description = gr.Textbox(label="活動描述")
-                event_location = gr.Textbox(label="活動地點")
-                event_start = gr.Textbox(label="開始時間 (YYYY-MM-DD HH:MM)", placeholder="2024-12-25 14:00")
-                event_end = gr.Textbox(label="結束時間 (YYYY-MM-DD HH:MM)", placeholder="2024-12-25 18:00")
-                event_create_btn = gr.Button("新增活動")
-                event_create_status = gr.Textbox(label="狀態")
-                event_create_btn.click(
-                    self.create_event, 
-                    inputs=[event_merchant_id, event_name, event_description, event_location, event_start, event_end], 
-                    outputs=[event_create_status]
-                )
+                    # API Key 列表放在下方以便顯示完整內容
+                    gr.Markdown("## API Key列表")
+                    refresh_api_keys_btn = gr.Button("刷新API Key列表")
+                    api_keys_table = gr.DataFrame(
+                        headers=["ID", "名稱", "API Key", "狀態", "最後使用", "使用次數", "過期時間", "創建時間"],
+                        label="API Key列表"
+                    )
                 
-                # 刪除活動
-                gr.Markdown("### 刪除活動")
-                event_id_delete = gr.Number(label="活動ID")
-                event_delete_btn = gr.Button("刪除活動")
-                event_delete_status = gr.Textbox(label="狀態")
-                event_delete_btn.click(self.delete_event, inputs=[event_id_delete], outputs=[event_delete_status])
+                # 員工管理
+                with gr.Tab("員工管理"):
+                    merchant_id_input = gr.Number(label="商戶ID")
+                    staff_table = gr.Dataframe(headers=["ID", "帳號", "姓名", "Email", "狀態", "管理員", "建立時間"])
+                    staff_refresh_btn = gr.Button("刷新員工列表")
+                    staff_refresh_btn.click(self.get_staff_data, inputs=[merchant_id_input], outputs=[staff_table])
+                    # 新增員工
+                    staff_username = gr.Textbox(label="帳號")
+                    staff_password = gr.Textbox(label="密碼", type="password")
+                    staff_full_name = gr.Textbox(label="姓名")
+                    staff_email = gr.Textbox(label="Email")
+                    staff_is_admin = gr.Checkbox(label="管理員")
+                    staff_create_btn = gr.Button("新增員工")
+                    staff_create_status = gr.Textbox(label="狀態")
+                    staff_create_btn.click(self.create_staff, inputs=[merchant_id_input, staff_username, staff_password, staff_full_name, staff_email, staff_is_admin], outputs=[staff_create_status])
+                    # 刪除員工
+                    staff_id_delete = gr.Number(label="員工ID")
+                    staff_delete_btn = gr.Button("刪除員工")
+                    staff_delete_status = gr.Textbox(label="狀態")
+                    staff_delete_btn.click(self.delete_staff, inputs=[staff_id_delete], outputs=[staff_delete_status])
 
-            # 票種管理
-            with gr.Tab("票種管理"):
-                with gr.Row():
-                    with gr.Column():
-                        gr.Markdown("## 查看票種")
-                        tt_event_id = gr.Number(label="活動ID")
-                        tt_refresh_btn = gr.Button("查看票種列表")
-                        ticket_types_table = gr.DataFrame(
-                            headers=["ID", "票種名稱", "價格", "配額", "已產出", "剩餘", "狀態"],
-                            label="票種列表"
-                        )
+                # 活動管理
+                with gr.Tab("活動管理"):
+                    event_merchant_id = gr.Number(label="商戶ID")
+                    event_table = gr.Dataframe(headers=["ID", "活動名稱", "描述", "地點", "開始時間", "結束時間", "狀態", "創建時間", "更新時間"])
+                    event_refresh_btn = gr.Button("刷新活動列表")
+                    event_refresh_btn.click(self.get_events_data, inputs=[event_merchant_id], outputs=[event_table])
                     
-                    with gr.Column():
-                        gr.Markdown("## 新增票種")
-                        tt_new_event_id = gr.Number(label="活動ID")
-                        tt_name = gr.Textbox(label="票種名稱", placeholder="例如: 一般票、VIP票")
-                        tt_price = gr.Number(label="價格", minimum=0, value=0)
-                        tt_quota = gr.Number(label="配額 (0=無限制)", minimum=0, value=0)
-                        tt_create_btn = gr.Button("創建票種", variant="primary")
-                        tt_create_status = gr.Textbox(label="操作狀態", interactive=False)
-
-            # 產票管理
-            with gr.Tab("產票管理"):
-                with gr.Row():
-                    with gr.Column():
-                        gr.Markdown("## 單張產票")
-                        single_event_id = gr.Number(label="活動ID")
-                        single_ticket_type = gr.Dropdown(label="票種", choices=[], interactive=True)
-                        single_refresh_types_btn = gr.Button("刷新票種列表")
-                        single_holder_name = gr.Textbox(label="持有人姓名", placeholder="請輸入持有人姓名")
-                        single_holder_email = gr.Textbox(label="電子郵件 (選填)", placeholder="example@email.com")
-                        single_holder_phone = gr.Textbox(label="電話 (選填)", placeholder="0912345678")
-                        single_notes = gr.Textbox(label="備註 (選填)", placeholder="其他備註資訊")
-                        single_create_btn = gr.Button("產生票券", variant="primary")
-                        single_create_status = gr.Textbox(label="操作狀態", interactive=False)
+                    # 新增活動
+                    gr.Markdown("### 新增活動")
+                    event_name = gr.Textbox(label="活動名稱")
+                    event_description = gr.Textbox(label="活動描述")
+                    event_location = gr.Textbox(label="活動地點")
+                    event_start = gr.Textbox(label="開始時間 (YYYY-MM-DD HH:MM)", placeholder="2024-12-25 14:00")
+                    event_end = gr.Textbox(label="結束時間 (YYYY-MM-DD HH:MM)", placeholder="2024-12-25 18:00")
+                    event_create_btn = gr.Button("新增活動")
+                    event_create_status = gr.Textbox(label="狀態")
+                    event_create_btn.click(
+                        self.create_event,
+                        inputs=[event_merchant_id, event_name, event_description, event_location, event_start, event_end],
+                        outputs=[event_create_status]
+                    )
                     
-                    with gr.Column():
-                        gr.Markdown("## 批次產票")
-                        batch_event_id = gr.Number(label="活動ID")
-                        batch_ticket_type = gr.Dropdown(label="票種", choices=[], interactive=True)
-                        batch_refresh_types_btn = gr.Button("刷新票種列表")
-                        batch_count = gr.Number(label="票券數量", minimum=1, maximum=100, value=1)
-                        batch_name_prefix = gr.Textbox(label="持有人前綴", value="批次票券", placeholder="例如: 批次票券")
-                        batch_create_btn = gr.Button("批次產票", variant="primary")
-                        batch_create_status = gr.Textbox(label="操作狀態", interactive=False)
+                    # 刪除活動
+                    gr.Markdown("### 刪除活動")
+                    event_id_delete = gr.Number(label="活動ID")
+                    event_delete_btn = gr.Button("刪除活動")
+                    event_delete_status = gr.Textbox(label="狀態")
+                    event_delete_btn.click(self.delete_event, inputs=[event_id_delete], outputs=[event_delete_status])
 
-            # 門票管理
-            with gr.Tab("門票管理"):
-                with gr.Row():
-                    ticket_merchant_id = gr.Number(label="商戶ID (選填)", info="留空則查詢所有商戶")
-                    ticket_event_id = gr.Number(label="活動ID")
-                ticket_table = gr.Dataframe(headers=["ID", "UUID", "票種", "持有人", "描述", "狀態", "建立時間"])
-                ticket_refresh_btn = gr.Button("刷新門票列表")
-                ticket_refresh_btn.click(self.get_tickets_data, inputs=[ticket_event_id, ticket_merchant_id], outputs=[ticket_table])
+                # 票種管理
+                with gr.Tab("票種管理"):
+                    with gr.Row():
+                        with gr.Column():
+                            gr.Markdown("## 查看票種")
+                            tt_event_id = gr.Number(label="活動ID")
+                            tt_refresh_btn = gr.Button("查看票種列表")
+                            ticket_types_table = gr.DataFrame(
+                                headers=["ID", "票種名稱", "價格", "配額", "已產出", "剩餘", "狀態"],
+                                label="票種列表"
+                            )
+                        
+                        with gr.Column():
+                            gr.Markdown("## 新增票種")
+                            tt_new_event_id = gr.Number(label="活動ID")
+                            tt_name = gr.Textbox(label="票種名稱", placeholder="例如: 一般票、VIP票")
+                            tt_price = gr.Number(label="價格", minimum=0, value=0)
+                            tt_quota = gr.Number(label="配額 (0=無限制)", minimum=0, value=0)
+                            tt_create_btn = gr.Button("創建票種", variant="primary")
+                            tt_create_status = gr.Textbox(label="操作狀態", interactive=False)
 
-            # 簽到記錄
-            with gr.Tab("簽到記錄"):
-                with gr.Row():
-                    checkin_merchant_id = gr.Number(label="商戶ID (選填)", info="留空則查詢所有商戶")
-                    checkin_event_id = gr.Number(label="活動ID")
-                checkin_table = gr.Dataframe(headers=["票號", "姓名", "簽到時間"])
-                checkin_refresh_btn = gr.Button("刷新簽到記錄")
-                checkin_refresh_btn.click(self.get_checkin_records, inputs=[checkin_event_id, checkin_merchant_id], outputs=[checkin_table])
+                # 產票管理
+                with gr.Tab("產票管理"):
+                    with gr.Row():
+                        with gr.Column():
+                            gr.Markdown("## 單張產票")
+                            single_event_id = gr.Number(label="活動ID")
+                            single_ticket_type = gr.Dropdown(label="票種", choices=[], interactive=True)
+                            single_refresh_types_btn = gr.Button("刷新票種列表")
+                            single_holder_name = gr.Textbox(label="持有人姓名", placeholder="請輸入持有人姓名")
+                            single_holder_email = gr.Textbox(label="電子郵件 (選填)", placeholder="example@email.com")
+                            single_holder_phone = gr.Textbox(label="電話 (選填)", placeholder="0912345678")
+                            single_notes = gr.Textbox(label="備註 (選填)", placeholder="其他備註資訊")
+                            single_create_btn = gr.Button("產生票券", variant="primary")
+                            single_create_status = gr.Textbox(label="操作狀態", interactive=False)
+                        
+                        with gr.Column():
+                            gr.Markdown("## 批次產票")
+                            batch_event_id = gr.Number(label="活動ID")
+                            batch_ticket_type = gr.Dropdown(label="票種", choices=[], interactive=True)
+                            batch_refresh_types_btn = gr.Button("刷新票種列表")
+                            batch_count = gr.Number(label="票券數量", minimum=1, maximum=100, value=1)
+                            batch_name_prefix = gr.Textbox(label="持有人前綴", value="批次票券", placeholder="例如: 批次票券")
+                            batch_create_btn = gr.Button("批次產票", variant="primary")
+                            batch_create_status = gr.Textbox(label="操作狀態", interactive=False)
+
+                # 門票管理
+                with gr.Tab("門票管理"):
+                    with gr.Row():
+                        ticket_merchant_id = gr.Number(label="商戶ID (選填)", info="留空則查詢所有商戶")
+                        ticket_event_id = gr.Number(label="活動ID")
+                    ticket_table = gr.Dataframe(headers=["ID", "UUID", "票種", "持有人", "描述", "狀態", "建立時間"])
+                    ticket_refresh_btn = gr.Button("刷新門票列表")
+                    ticket_refresh_btn.click(self.get_tickets_data, inputs=[ticket_event_id, ticket_merchant_id], outputs=[ticket_table])
+
+                # 簽到記錄
+                with gr.Tab("簽到記錄"):
+                    with gr.Row():
+                        checkin_merchant_id = gr.Number(label="商戶ID (選填)", info="留空則查詢所有商戶")
+                        checkin_event_id = gr.Number(label="活動ID")
+                    checkin_table = gr.Dataframe(headers=["票號", "姓名", "簽到時間"])
+                    checkin_refresh_btn = gr.Button("刷新簽到記錄")
+                    checkin_refresh_btn.click(self.get_checkin_records, inputs=[checkin_event_id, checkin_merchant_id], outputs=[checkin_table])
 
             # 事件處理
             def handle_login(password):
-                return self.authenticate_admin(password)
+                """處理登入並控制內容可見性"""
+                message, is_authenticated = self.authenticate_admin(password)
+                if is_authenticated:
+                    return message, is_authenticated, gr.update(visible=True)
+                else:
+                    return message, is_authenticated, gr.update(visible=False)
             
             def update_merchant_dropdown():
                 db = self.get_db_session()
@@ -711,7 +718,7 @@ class GradioAdmin:
             login_btn.click(
                 handle_login,
                 inputs=[password_input],
-                outputs=[login_status, auth_state]
+                outputs=[login_status, auth_state, protected_content]
             )
             
             overview_btn.click(
