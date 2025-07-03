@@ -11,7 +11,7 @@ router = APIRouter(
 )
 
 @router.get("/{ticket_uuid}", response_model=ticket_schema.TicketPublic)
-def get_ticket_by_uuid(ticket_uuid: str, db: Session = Depends(database.get_db)):
+def get_ticket_by_uuid(ticket_uuid: int, db: Session = Depends(database.get_db)):
     """
     Get public ticket details by UUID.
     """
@@ -21,7 +21,7 @@ def get_ticket_by_uuid(ticket_uuid: str, db: Session = Depends(database.get_db))
     
     # Manually construct the response to ensure uuid is properly serialized
     return ticket_schema.TicketPublic(
-        uuid=str(ticket.uuid),
+        uuid=ticket.uuid,
         holder_name=ticket.holder_name,
         is_used=ticket.is_used,
         event_id=ticket.event_id,
@@ -30,7 +30,7 @@ def get_ticket_by_uuid(ticket_uuid: str, db: Session = Depends(database.get_db))
     )
 
 @router.get("/{ticket_uuid}/qr-token", response_model=ticket_schema.QRTokenResponse)
-def get_ticket_qr_token(ticket_uuid: str, db: Session = Depends(database.get_db)):
+def get_ticket_qr_token(ticket_uuid: int, db: Session = Depends(database.get_db)):
     """
     Get a JWT token for QR code scanning.
     """
@@ -38,12 +38,12 @@ def get_ticket_qr_token(ticket_uuid: str, db: Session = Depends(database.get_db)
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     
-    qr_token = auth.create_qr_token(ticket_uuid=str(ticket.uuid), event_id=ticket.event_id)
+    qr_token = auth.create_qr_token(ticket_uuid=ticket.uuid, event_id=ticket.event_id)
     return {"qr_token": qr_token}
 
 
 @router.get("/{ticket_uuid}/qr", responses={200: {"content": {"image/png": {}}}})
-def get_ticket_qr_code(ticket_uuid: str, db: Session = Depends(database.get_db)):
+def get_ticket_qr_code(ticket_uuid: int, db: Session = Depends(database.get_db)):
     """
     Get a QR code for a ticket.
     """
@@ -56,7 +56,7 @@ def get_ticket_qr_code(ticket_uuid: str, db: Session = Depends(database.get_db))
         raise HTTPException(status_code=404, detail="Ticket not found")
     
     # The QR code should contain the QR token, not the UUID directly
-    qr_token = auth.create_qr_token(ticket_uuid=str(ticket.uuid), event_id=ticket.event_id)
+    qr_token = auth.create_qr_token(ticket_uuid=ticket.uuid, event_id=ticket.event_id)
     
     # Generate QR code directly
     qr = qrcode.QRCode(

@@ -1,7 +1,7 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, UUID, Text
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, Text, BigInteger
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import text, func
-import uuid
+from sqlalchemy.sql import func
+from utils.snowflake import generate_snowflake_id
 
 from .base import Base
 
@@ -10,7 +10,7 @@ class Ticket(Base):
     __tablename__ = "tickets"
     
     id = Column(Integer, primary_key=True, index=True)
-    uuid = Column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"), default=uuid.uuid4, unique=True, nullable=False, index=True)
+    uuid = Column(BigInteger, default=generate_snowflake_id, unique=True, nullable=False, index=True)
     event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
     ticket_type_id = Column(Integer, ForeignKey("ticket_types.id"), nullable=True)
     ticket_code = Column(String(50), unique=True, nullable=False, index=True)

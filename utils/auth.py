@@ -20,8 +20,8 @@ def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
-def create_qr_token(ticket_uuid: str, event_id: int) -> str:
-    """建立 QR Code 用的 JWT token (使用 UUID)"""
+def create_qr_token(ticket_uuid: int, event_id: int) -> str:
+    """建立 QR Code 用的 JWT token (使用 Snowflake ID)"""
     expire = datetime.utcnow() + timedelta(hours=settings.QR_TOKEN_EXPIRE_HOURS)
     payload = {
         "ticket_uuid": ticket_uuid,

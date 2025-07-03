@@ -4,7 +4,6 @@
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
-import uuid
 
 # 票券基本 schema
 class TicketBase(BaseModel):
@@ -28,7 +27,7 @@ class TicketUpdate(BaseModel):
 
 class Ticket(TicketBase):
     id: int
-    uuid: str  # <--- 將 uuid 型別改回 str
+    uuid: int
     event_id: int
     ticket_type_id: Optional[int]
     ticket_code: str
@@ -41,7 +40,7 @@ class Ticket(TicketBase):
 
 # Public ticket information
 class TicketPublic(BaseModel):
-    uuid: str
+    uuid: int
     holder_name: str
     is_used: bool
     event_id: int

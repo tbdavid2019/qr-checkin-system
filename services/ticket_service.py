@@ -120,8 +120,8 @@ class TicketService:
         ).first()
     
     @staticmethod
-    def get_ticket_by_uuid(db: Session, ticket_uuid: str) -> Ticket:
-        """Get ticket by UUID"""
+    def get_ticket_by_uuid(db: Session, ticket_uuid: int) -> Ticket:
+        """Get ticket by UUID (now Snowflake ID)"""
         return db.query(Ticket).filter(Ticket.uuid == ticket_uuid).first()
     
     @staticmethod

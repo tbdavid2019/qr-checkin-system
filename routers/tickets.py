@@ -19,7 +19,7 @@ def _convert_ticket_model_to_schema(ticket_model) -> Ticket:
     """將 SQLAlchemy Ticket model 轉換為 Pydantic Ticket schema，並處理 uuid."""
     return Ticket(
         id=ticket_model.id,
-        uuid=str(ticket_model.uuid),
+        uuid=ticket_model.uuid,
         event_id=ticket_model.event_id,
         ticket_type_id=ticket_model.ticket_type_id,
         ticket_code=ticket_model.ticket_code,
