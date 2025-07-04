@@ -15,8 +15,8 @@ from services.event_service import EventService
 from services.ticket_service import TicketService
 from schemas.merchant import MerchantCreate
 from schemas.staff import StaffCreate
-from schemas.event import EventCreate
-from schemas.ticket import TicketTypeCreate, TicketCreate
+from schemas.event import EventCreate, TicketTypeCreate
+from schemas.ticket import TicketCreate
 
 def create_test_data():
     """創建多租戶測試數據"""

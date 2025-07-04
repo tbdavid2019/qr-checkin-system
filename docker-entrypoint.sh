@@ -31,7 +31,7 @@ print(count)
 
 if [ "$MERCHANT_COUNT" -eq "0" ]; then
     echo "📋 No demo data found. Creating demo data..."
-    python setup_multi_tenant.py
+    python create_test_data_new.py
     echo "✅ Demo data created!"
 else
     echo "✅ Demo data already exists (found $MERCHANT_COUNT merchants)"
